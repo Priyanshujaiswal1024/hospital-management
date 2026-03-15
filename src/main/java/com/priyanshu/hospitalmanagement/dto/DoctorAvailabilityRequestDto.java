@@ -7,7 +7,7 @@ import java.time.LocalTime;
 @Data
 public class DoctorAvailabilityRequestDto {
 
-    private Long doctorId;
+
 
     private LocalDate date;
 

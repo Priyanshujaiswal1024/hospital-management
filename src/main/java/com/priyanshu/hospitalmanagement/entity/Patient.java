@@ -1,11 +1,7 @@
 package com.priyanshu.hospitalmanagement.entity;
 
-import com.priyanshu.hospitalmanagement.entity.Appointment;
-import com.priyanshu.hospitalmanagement.entity.Insurance;
-import com.priyanshu.hospitalmanagement.entity.User;
 import com.priyanshu.hospitalmanagement.entity.type.BloodGroupType;
 import jakarta.persistence.*;
-import jakarta.validation.Valid;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -17,13 +13,9 @@ import java.util.List;
 @Entity
 @Table(
         name = "patient",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "unique_patient_name_birthdate",
-                        columnNames = {"name", "birthDate"}
-                )
-        },
         indexes = {
+                // FIX: removed uniqueConstraint on name+birthDate
+                // two patients can have same name and birthday
                 @Index(name = "idx_patient_birth_date", columnList = "birthDate")
         }
 )
@@ -36,8 +28,20 @@ import java.util.List;
 public class Patient {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    // FIX 2: @MapsId — Patient ID now equals User ID
+    // consistent with Doctor entity
+    // patientRepository.findById(userId) now works correctly
     private Long id;
+
+    @OneToOne
+    @MapsId                             // ← Patient ID = User ID
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    // FIX 1: removed duplicate email and phone fields
+    // email → patient.getUser().getUsername()
+    // phone → patient.getUser().getPhone()
+    // having them here caused data inconsistency on update
 
     @Column(nullable = false, length = 40)
     private String name;
@@ -46,13 +50,8 @@ public class Patient {
 
     private LocalDate birthDate;
 
-    @Column(unique = true, nullable = false)
-
-    private String email;
-    @Column(length = 15)
-    private String phone;
-
     private String gender;
+
     @Column(length = 450)
     private String address;
 
@@ -69,23 +68,18 @@ public class Patient {
     @Enumerated(EnumType.STRING)
     private BloodGroupType bloodGroup;
 
-    private Double height;
+    private Double height;              // in cm
 
-    private Double weight;
+    private Double weight;              // in kg
 
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
-    @OneToOne
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
-
-
-    @ManyToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "patient_insurance_id")
+    @OneToOne(mappedBy = "patient", cascade = CascadeType.ALL)
     private Insurance insurance;
 
+    @Builder.Default                    // FIX: prevent NPE when using builder
     @ToString.Exclude
     @OneToMany(
             mappedBy = "patient",

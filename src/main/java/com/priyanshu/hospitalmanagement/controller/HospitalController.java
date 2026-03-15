@@ -1,72 +1,47 @@
 package com.priyanshu.hospitalmanagement.controller;
 
+import com.priyanshu.hospitalmanagement.dto.DepartmentResponseDto;
 import com.priyanshu.hospitalmanagement.dto.DoctorResponseDto;
+import com.priyanshu.hospitalmanagement.service.DepartmentService;
 import com.priyanshu.hospitalmanagement.service.DoctorService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.data.domain.Page;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+
 @RestController
 @RequestMapping("/public")
 @RequiredArgsConstructor
 public class HospitalController {
 
     private final DoctorService doctorService;
+    private final DepartmentService departmentService;
 
-    // 1. Get all doctors
+    // Single unified search endpoint — replaces 3 redundant ones
+    // GET /public/doctors?page=0&size=10
+    // GET /public/doctors?name=sharma
+    // GET /public/doctors?specialization=cardiology
+    // GET /public/doctors?name=sharma&specialization=cardiology
     @GetMapping("/doctors")
-    public ResponseEntity<List<DoctorResponseDto>> getAllDoctors() {
-        return ResponseEntity.ok(doctorService.getAllDoctors());
-    }
-
-    // 2. Search by name only
-    // GET /public/doctors/search?name=smith
-    @GetMapping("/doctors/search")
-    public ResponseEntity<List<DoctorResponseDto>> searchDoctorsByName(
-            @RequestParam String name) {
-        return ResponseEntity.ok(doctorService.searchDoctorsByName(name));
-    }
-
-    // 3. Filter by specialization only
-    // GET /public/doctors/specialization?specialization=cardiology
-    @GetMapping("/doctors/specialization")
-    public ResponseEntity<List<DoctorResponseDto>> getDoctorsBySpecialization(
-            @RequestParam String specialization) {
-        return ResponseEntity.ok(
-                doctorService.getDoctorsBySpecialization(specialization));
-    }
-
-    // 4. Search by both name AND specialization
-    // GET /public/doctors/filter?name=smith&specialization=cardiology
-    @GetMapping("/doctors/filter")
-    public ResponseEntity<List<DoctorResponseDto>> searchDoctorsByNameAndSpecialization(
+    public Page<DoctorResponseDto> searchDoctors(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String specialization) {
+            @RequestParam(required = false) String specialization,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return doctorService.searchDoctors(name, specialization, page, size);
+    }
 
-        // if both params sent
-        if (name != null && specialization != null) {
-            return ResponseEntity.ok(
-                    doctorService.searchDoctorsByNameAndSpecialization(
-                            name, specialization));
-        }
+    // GET /public/departments
+    @GetMapping("/departments")
+    public List<DepartmentResponseDto> getAllDepartments() {
+        return departmentService.getAllDepartments();
+    }
 
-        // if only name sent
-        if (name != null) {
-            return ResponseEntity.ok(
-                    doctorService.searchDoctorsByName(name));
-        }
-
-        // if only specialization sent
-        if (specialization != null) {
-            return ResponseEntity.ok(
-                    doctorService.getDoctorsBySpecialization(specialization));
-        }
-
-        // if nothing sent — return all
-        return ResponseEntity.ok(doctorService.getAllDoctors());
+    // GET /public/departments/{id}/doctors
+    // FIX: was /public/public/departments/{id}/doctors before
+    @GetMapping("/departments/{id}/doctors")
+    public List<DoctorResponseDto> getDoctorsByDepartment(@PathVariable Long id) {
+        return departmentService.getDoctorsByDepartment(id);
     }
 }

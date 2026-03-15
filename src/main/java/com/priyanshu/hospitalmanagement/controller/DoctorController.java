@@ -40,10 +40,34 @@ public class DoctorController {
     @PostMapping("/doctor/availability")
     public ResponseEntity<String> addDoctorAvailability(
             @RequestBody DoctorAvailabilityRequestDto dto) {
-
-        doctorService.addDoctorAvailability(dto);
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+        doctorService.addDoctorAvailability(userPrincipal.getId(), dto);
 
         return ResponseEntity.ok("Doctor availability added successfully");
+    }
+    /*
+ -----------------------------------------
+ Get Upcoming Appointments — DOCTOR
+ -----------------------------------------
+ */
+    @GetMapping("/appointments/upcoming")
+    public ResponseEntity<List<AppointmentResponseDto>> getUpcomingAppointments() {
+
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+
+        return ResponseEntity.ok(
+                appointmentService.getUpcomingAppointmentsForDoctor(
+                        userPrincipal.getId()
+                )
+        );
     }
     @PostMapping("/appointments/{appointmentId}/prescription")
     public void addPrescription(

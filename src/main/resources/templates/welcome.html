@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 30px auto; background: #ffffff;
+            border-radius: 8px; overflow: hidden; }
+        .header { background: #1a73e8; padding: 30px; text-align: center; }
+        .header h1 { color: #ffffff; margin: 0; font-size: 22px; }
+        .body { padding: 30px; color: #333333; }
+        .body p { line-height: 1.7; }
+        .credentials { background: #f0f4ff; border-left: 4px solid #1a73e8;
+            padding: 16px 20px; border-radius: 4px; margin: 20px 0; }
+        .credentials table { width: 100%; border-collapse: collapse; }
+        .credentials td { padding: 8px 0; font-size: 15px; }
+        .credentials td:first-child { color: #555; font-weight: bold;
+            width: 160px; }
+        .credentials td:last-child { color: #1a1a1a; }
+        .warning { background: #fff8e1; border-left: 4px solid #f9a825;
+            padding: 12px 16px; border-radius: 4px;
+            font-size: 13px; color: #7a6000; margin-top: 20px; }
+        .footer { text-align: center; padding: 20px;
+            font-size: 12px; color: #999999; background: #f9f9f9; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <h1>Welcome to City Care Hospital</h1>
+    </div>
+
+    <!-- Body -->
+    <div class="body">
+        <p>Dear <strong th:text="'Dr. ' + ${doctorName}">Dr. Name</strong>,</p>
+
+        <p>
+            Your doctor account has been created successfully by the admin.
+            You can now log in to the Hospital Management System using
+            the credentials below.
+        </p>
+
+        <!-- Credentials Box -->
+        <div class="credentials">
+            <table>
+                <tr>
+                    <td>Email / Username</td>
+                    <td th:text="${email}">doctor@hospital.com</td>
+                </tr>
+                <tr>
+                    <td>Temporary Password</td>
+                    <td th:text="${tempPassword}">TempPass@123</td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- Warning -->
+        <div class="warning">
+            ⚠ Please log in immediately and change your password.
+            Do not share these credentials with anyone.
+        </div>
+
+        <p>
+            If you did not expect this email or believe this was sent
+            in error, please contact the hospital admin immediately.
+        </p>
+
+        <p>Welcome aboard!<br/>
+            <strong>City Care Hospital — Admin Team</strong></p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+        © 2026 City Care Hospital. All rights reserved.<br/>
+        123 Health Street, Delhi | billing@citycarehospital.in
+    </div>
+
+</div>
+</body>
+</html>

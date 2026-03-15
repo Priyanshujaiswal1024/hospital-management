@@ -3,140 +3,170 @@ package com.priyanshu.hospitalmanagement.service;
 import com.priyanshu.hospitalmanagement.dto.DoctorAvailabilityRequestDto;
 import com.priyanshu.hospitalmanagement.dto.DoctorResponseDto;
 import com.priyanshu.hospitalmanagement.dto.OnboardDoctorRequestDto;
-import com.priyanshu.hospitalmanagement.entity.Doctor;
-import com.priyanshu.hospitalmanagement.entity.DoctorAvailability;
-import com.priyanshu.hospitalmanagement.entity.User;
+import com.priyanshu.hospitalmanagement.entity.*;
 import com.priyanshu.hospitalmanagement.entity.type.RoleType;
-import com.priyanshu.hospitalmanagement.repository.DoctorAvailabilityRepository;
-import com.priyanshu.hospitalmanagement.repository.DoctorRepository;
-import com.priyanshu.hospitalmanagement.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import com.priyanshu.hospitalmanagement.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class DoctorService {
 
     private final DoctorRepository doctorRepository;
-    private final ModelMapper modelMapper;
     private final UserRepository userRepository;
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
+    private final DepartmentRepository departmentRepository;
+    private final EmailService emailService;
+    private final PasswordEncoder passwordEncoder;
 
-    public List<DoctorResponseDto> getAllDoctors() {
-        return doctorRepository.findAll()
-                .stream()
-                .map(doctor -> modelMapper.map(doctor, DoctorResponseDto.class))
-                .collect(Collectors.toList());
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET ALL DOCTORS (paginated)
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public Page<DoctorResponseDto> getAllDoctors(int page, int size) {
+        return doctorRepository
+                .findAll(PageRequest.of(page, size))
+                .map(this::mapToDto);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // ONBOARD NEW DOCTOR (Admin only)
+    // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public DoctorResponseDto onBoardNewDoctor(OnboardDoctorRequestDto onBoardDoctorRequestDto) {
-        User user = userRepository.findById(onBoardDoctorRequestDto.getUserId())
-                .orElseThrow(() -> new RuntimeException(
-                        "User not found with id: " + onBoardDoctorRequestDto.getUserId()));
+    public DoctorResponseDto onBoardNewDoctor(OnboardDoctorRequestDto dto) {
 
-        if (doctorRepository.existsById(onBoardDoctorRequestDto.getUserId())) {
-            throw new IllegalArgumentException("User is already a doctor");
+        // 1. Check email not already taken
+        if (userRepository.existsByUsername(dto.getEmail())) {
+            throw new RuntimeException("Email already registered: " + dto.getEmail());
         }
 
+        // 2. Create User account (email == username per your requirement)
+        User user = User.builder()
+                .username(dto.getEmail())
+                .password(passwordEncoder.encode(dto.getPassword()))
+                .build();
+        user.getRoles().add(RoleType.DOCTOR);
+        userRepository.save(user);
+
+        // 3. Build Doctor entity
         Doctor doctor = Doctor.builder()
-                .name(onBoardDoctorRequestDto.getName())
-                .specialization(onBoardDoctorRequestDto.getSpecialization())
-                .email(onBoardDoctorRequestDto.getEmail())
                 .user(user)
+                .name(dto.getName())
+                .email(dto.getEmail())
+                .specialization(dto.getSpecialization())
+                .consultationFee(dto.getConsultationFee())
+                .experienceYears(dto.getExperienceYears())
+                .phoneNumber(dto.getPhoneNumber())
+                .bio(dto.getBio())
+                .profileImageUrl(dto.getProfileImageUrl())
                 .build();
 
-        user.getRoles().add(RoleType.DOCTOR);
-
-        Doctor savedDoctor = doctorRepository.save(doctor);
-        log.info("New doctor onboarded with id: {}", savedDoctor.getId());
-
-        return modelMapper.map(savedDoctor, DoctorResponseDto.class);
-    }
-
-    // search by name only
-    public List<DoctorResponseDto> searchDoctorsByName(String name) {
-        List<Doctor> doctors = doctorRepository
-                .findByNameContainingIgnoreCase(name);
-
-        if (doctors.isEmpty()) {
-            throw new RuntimeException("No doctors found with name: " + name);
+        // 4. Assign department if provided
+        if (dto.getDepartmentId() != null) {
+            Department department = departmentRepository.findById(dto.getDepartmentId())
+                    .orElseThrow(() -> new RuntimeException(
+                            "Department not found: " + dto.getDepartmentId()));
+            department.getDoctors().add(doctor);
+            doctor.getDepartments().add(department);
         }
 
-        return doctors.stream()
-                .map(doctor -> modelMapper.map(doctor, DoctorResponseDto.class))
-                .collect(Collectors.toList());
+        Doctor saved = doctorRepository.save(doctor);
+        log.info("New doctor onboarded: {} (id={})", saved.getName(), saved.getId());
+
+        // 5. Send welcome email to doctor
+        emailService.sendDoctorWelcome(
+                saved.getEmail(),
+                saved.getName(),
+                dto.getPassword()   // send plain password once — they should change it
+        );
+
+        return mapToDto(saved);
     }
 
-    // search by specialization only
-    public List<DoctorResponseDto> getDoctorsBySpecialization(String specialization) {
-        List<Doctor> doctors = doctorRepository
-                .findBySpecializationIgnoreCase(specialization);
+    // ─────────────────────────────────────────────────────────────────────────
+    // SEARCH DOCTORS
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public Page<DoctorResponseDto> searchDoctors(
+            String name, String specialization, int page, int size) {
 
-        if (doctors.isEmpty()) {
-            throw new RuntimeException(
-                    "No doctors found with specialization: " + specialization);
-        }
+        Pageable pageable = PageRequest.of(page, size);
 
-        return doctors.stream()
-                .map(doctor -> modelMapper.map(doctor, DoctorResponseDto.class))
-                .collect(Collectors.toList());
-    }
-
-    // search by both name AND specialization
-    public List<DoctorResponseDto> searchDoctorsByNameAndSpecialization(
-            String name, String specialization) {
-
-        // both provided
         if (name != null && specialization != null) {
-            List<Doctor> doctors = doctorRepository
+            return doctorRepository
                     .findByNameContainingIgnoreCaseAndSpecializationIgnoreCase(
-                            name, specialization);
-
-            if (doctors.isEmpty()) {
-                throw new RuntimeException(
-                        "No doctors found with name: " + name +
-                                " and specialization: " + specialization);
-            }
-
-            return doctors.stream()
-                    .map(doctor -> modelMapper.map(doctor, DoctorResponseDto.class))
-                    .collect(Collectors.toList());
+                            name, specialization, pageable)
+                    .map(this::mapToDto);
         }
-
-        // only name provided
         if (name != null) {
-            return searchDoctorsByName(name);
+            return doctorRepository
+                    .findByNameContainingIgnoreCase(name, pageable)
+                    .map(this::mapToDto);
         }
-
-        // only specialization provided
         if (specialization != null) {
-            return getDoctorsBySpecialization(specialization);
+            return doctorRepository
+                    .findBySpecializationIgnoreCase(specialization, pageable)
+                    .map(this::mapToDto);
         }
-
-        // nothing provided — return all
-        return getAllDoctors();
+        return doctorRepository.findAll(pageable).map(this::mapToDto);
     }
-    @Transactional
-    public void addDoctorAvailability(DoctorAvailabilityRequestDto dto) {
 
-        Doctor doctor = doctorRepository.findById(dto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+    // ─────────────────────────────────────────────────────────────────────────
+    // ADD DOCTOR AVAILABILITY
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional
+    public void addDoctorAvailability(Long doctorId, DoctorAvailabilityRequestDto dto) {
+
+        Doctor doctor = doctorRepository.findById(doctorId)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + doctorId));
+
+        // Guard: prevent duplicate availability slot for same date
+        boolean slotExists = doctorAvailabilityRepository
+                .existsByDoctorIdAndDate(doctorId, dto.getDate());
+        if (slotExists) {
+            throw new RuntimeException(
+                    "Availability already set for this date: " + dto.getDate());
+        }
 
         DoctorAvailability availability = DoctorAvailability.builder()
+                .doctor(doctor)         // ← set only once (was set twice before)
                 .date(dto.getDate())
                 .startTime(dto.getStartTime())
                 .endTime(dto.getEndTime())
-                .doctor(doctor)
                 .build();
 
         doctorAvailabilityRepository.save(availability);
+        log.info("Availability added for doctor {} on {}", doctorId, dto.getDate());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIVATE HELPER — manual mapping avoids ModelMapper lazy-load issues
+    // ─────────────────────────────────────────────────────────────────────────
+    private DoctorResponseDto mapToDto(Doctor d) {
+        DoctorResponseDto dto = new DoctorResponseDto();
+        dto.setId(d.getId());
+        dto.setName(d.getName());
+        dto.setEmail(d.getEmail());
+        dto.setSpecialization(d.getSpecialization());
+        dto.setConsultationFee(d.getConsultationFee());
+        dto.setExperienceYears(d.getExperienceYears());
+        dto.setPhoneNumber(d.getPhoneNumber());
+        dto.setBio(d.getBio());
+        dto.setProfileImageUrl(d.getProfileImageUrl());
+        dto.setDepartments(
+                d.getDepartments().stream()
+                        .map(Department::getName)
+                        .collect(Collectors.toSet())
+        );
+        return dto;
     }
 }

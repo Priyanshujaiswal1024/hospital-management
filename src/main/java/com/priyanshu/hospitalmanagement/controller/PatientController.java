@@ -1,12 +1,15 @@
 package com.priyanshu.hospitalmanagement.controller;
 
 import com.priyanshu.hospitalmanagement.dto.*;
+import com.priyanshu.hospitalmanagement.entity.MedicalRecord;
 import com.priyanshu.hospitalmanagement.entity.UserPrincipal;
-import com.priyanshu.hospitalmanagement.service.AppointmentService;
-import com.priyanshu.hospitalmanagement.service.PatientService;
+import com.priyanshu.hospitalmanagement.repository.InsuranceRepository;
+import com.priyanshu.hospitalmanagement.repository.MedicalRecordRepository;
+import com.priyanshu.hospitalmanagement.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
@@ -19,7 +22,9 @@ public class PatientController {
 
     private final PatientService patientService;
     private final AppointmentService appointmentService;
-
+  private final   PrescriptionService prescriptionService;
+  private final MedicalRecordRepository medicalRecordRepository;
+  private final InsuranceService insuranceService;
 
     /*
      -----------------------------------------
@@ -59,16 +64,20 @@ public class PatientController {
      Update Patient Profile
      -----------------------------------------
      */
-    @PutMapping("/profile/{id}")
-    public ResponseEntity<PatientResponseDto> updatePatientProfile(
-            @PathVariable Long id,
-            @RequestBody CreatePatientProfileRequestDto dto) {
+    @PutMapping("/profile")
+    public PatientResponseDto updateProfile(
+            @RequestBody UpdatePatientRequestDto dto,
+            Authentication authentication) {
 
-        return ResponseEntity.ok(
-                patientService.updatePatientProfile(id, dto));
+        return patientService.updatePatientProfile(dto); // username already read inside service
     }
 
+    @PatchMapping("/profile")
+    public PatientResponseDto patchProfile(
+            @RequestBody UpdatePatientRequestDto dto) {
 
+        return patientService.updatePatientProfile(dto);
+    }
     /*
      -----------------------------------------
      Add Insurance
@@ -97,7 +106,10 @@ public class PatientController {
                         userPrincipal.getId()
                 ));
     }
-
+    @GetMapping("/insurance")
+    public ResponseEntity<InsuranceResponseDto> getMyInsurance() {
+        return ResponseEntity.ok(insuranceService.getMyInsurance());
+    }
 
     /*
      -----------------------------------------
@@ -136,16 +148,65 @@ public class PatientController {
                         size
                 ));
     }
+    @GetMapping("/appointments/upcoming")
+    public ResponseEntity<List<AppointmentResponseDto>> getUpcomingAppointments() {
 
-    @PostMapping("/{patientId}/insurance")
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+
+        return ResponseEntity.ok(
+                appointmentService.getUpcomingAppointmentsForPatient(
+                        userPrincipal.getId()
+                )
+        );
+    }
+
+    @PostMapping("/insurance")
     public ResponseEntity<InsuranceResponseDto> addInsurance(
-            @PathVariable Long patientId,
             @RequestBody CreateInsuranceRequestDto dto) {
 
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+
         InsuranceResponseDto response =
-                patientService.addInsurance(patientId, dto);
+                patientService.addInsurance(userPrincipal.getId(), dto);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+    @GetMapping("/Prescription")
 
+    public List<PrescriptionResponseDto> getMyPrescriptions(Authentication authentication) {
+
+        String username = authentication.getName();
+
+        return prescriptionService.getPrescriptionsForLoggedInPatient(username);
+    }
+//    @GetMapping("/{patientId}/medical-record")
+//    public ResponseEntity<List<MedicalRecordResponseDto>> getPatientRecords(
+//            @PathVariable Long patientId
+//    ) {
+//
+//        List<MedicalRecord> records =
+//                medicalRecordRepository.findByPatient_Id(patientId);
+//
+//        return ResponseEntity.ok(
+//                records.stream()
+//                        .map(r -> MedicalRecordResponseDto.builder()
+//                                .id(r.getId())
+//                                .diagnosis(r.getDiagnosis())
+//                                .notes(r.getNotes())
+//                                .patientId(r.getPatient().getId())
+//                                .doctorId(r.getDoctor().getId())
+//                                .appointmentId(r.getAppointment().getId())
+//                                .visitDate(r.getVisitDate())
+//                                .build())
+//                        .toList()
+//        );
+//    }
 }

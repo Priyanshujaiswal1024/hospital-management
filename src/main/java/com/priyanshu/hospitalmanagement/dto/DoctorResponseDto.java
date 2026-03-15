@@ -1,15 +1,20 @@
 package com.priyanshu.hospitalmanagement.dto;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
+
+import java.util.Set;
 
 @Data
-@AllArgsConstructor
-@NoArgsConstructor
 public class DoctorResponseDto {
+
     private Long id;
     private String name;
-    private String specialization;
     private String email;
+    private String specialization;
+    private Double consultationFee;
+    private Integer experienceYears;
+    private String phoneNumber;
+    private String bio;
+    private String profileImageUrl;
+    private Set<String> departments;    // just names, not full entities
 }

@@ -31,7 +31,8 @@ public class Insurance {
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+    @OneToOne
+    @JoinColumn(name="patient_id")
+    private Patient patient;
 
-    public void setPatient(Patient patient) {
-    }
 }
