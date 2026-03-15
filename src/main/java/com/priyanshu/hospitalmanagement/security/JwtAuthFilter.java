@@ -1,5 +1,6 @@
 package com.priyanshu.hospitalmanagement.security;
 
+import com.priyanshu.hospitalmanagement.service.TokenBlacklist;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,7 +22,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JWTService authUtil;
     private final ApplicationContext context;
-
+    private final TokenBlacklist tokenBlacklist;
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -36,6 +37,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
 
             token = authHeader.substring(7);
+            // ── BLACKLIST CHECK ───────────────────────────────────────────
+            // If token was logged out, reject immediately
+            if (tokenBlacklist.isBlacklisted(token)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter().write(
+                        "{\"error\": \"Token has been invalidated. Please log in again.\"}"
+                );
+                return; // ← stop filter chain, don't authenticate
+            }
+            // ─────────────────────────────────────────────────────────────
             username = authUtil.getUsernameFromToken(token);
         }
 
@@ -70,9 +82,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     // ✅
     @Override
+
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/auth")
+        return path.equals("/auth/login")
+                || path.equals("/auth/register")
+                || path.equals("/auth/verify-otp")
+                || path.equals("/auth/resend-otp")
                 || path.startsWith("/public");
+        // ← /auth/logout is NOT here, so the filter WILL run on it
     }
 }

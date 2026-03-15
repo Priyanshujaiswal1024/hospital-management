@@ -20,7 +20,7 @@ public class DoctorAvailabilityService {
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
     private final AppointmentRepository appointmentRepository;
 
-    private static final int SLOT_DURATION = 15;
+    private static final int SLOT_DURATION = 30;
 
     public List<AvailableSlotDto> getAvailableSlots(Long doctorId, LocalDate date) {
 

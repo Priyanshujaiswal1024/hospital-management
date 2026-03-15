@@ -2,8 +2,13 @@ package com.priyanshu.hospitalmanagement.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
+@Table(name = "prescriptions")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -16,14 +21,19 @@ public class Prescription {
     private Long id;
 
     private String diagnosis;
+    @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL)
+    private List<PrescriptionMedicine> medicines;
 
-    @Column(length = 1000)
-    private String medicines;
-
-    @Column(length = 1000)
     private String notes;
+
+    @Column(updatable = false)
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
 
     @OneToOne
     @JoinColumn(name = "appointment_id")
     private Appointment appointment;
+
+
 }

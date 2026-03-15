@@ -29,6 +29,7 @@ public class AdminServiceImpl implements AdminService {
     private final ModelMapper modelMapper;
     private final DepartmentRepository departmentRepository;
     private final AppointmentRepository appointmentRepository;
+    private final EmailService emailService;
 
     // GET ALL PATIENTS
     @Override
@@ -55,6 +56,7 @@ public class AdminServiceImpl implements AdminService {
     @Override
     public DoctorResponseDto createDoctor(CreateDoctorRequestDto dto) {
 
+        // 1️⃣ Create User
         User user = new User();
         user.setUsername(dto.getUsername());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
@@ -65,18 +67,35 @@ public class AdminServiceImpl implements AdminService {
         user.setRoles(roles);
 
         userRepository.save(user);
+
+        // 2️⃣ Find Department
         Department department = departmentRepository
                 .findById(dto.getDepartmentId())
                 .orElseThrow(() -> new RuntimeException("Department not found"));
+
+        // 3️⃣ Create Doctor
         Doctor doctor = new Doctor();
+
         doctor.setUser(user);
         doctor.setName(dto.getName());
         doctor.setEmail(dto.getEmail());
         doctor.setSpecialization(dto.getSpecialization());
-            doctor.getDepartments().add(department);
-        doctorRepository.save(doctor);
+        doctor.setConsultationFee(dto.getConsultationFee());
+        doctor.setExperienceYears(dto.getExperienceYears());
+        doctor.setPhoneNumber(dto.getPhoneNumber());
+        doctor.setBio(dto.getBio());
+        doctor.setProfileImageUrl(dto.getProfileImageUrl());
 
-        return modelMapper.map(doctor, DoctorResponseDto.class);
+        doctor.getDepartments().add(department);
+        department.getDoctors().add(doctor);
+
+        doctorRepository.save(doctor);
+        emailService.sendDoctorWelcome(
+                dto.getEmail(),
+                dto.getName(),
+                dto.getPassword()
+        );
+        return mapToDto(doctor);
     }
 
     // UPDATE DOCTOR
@@ -92,7 +111,7 @@ public class AdminServiceImpl implements AdminService {
 
         doctorRepository.save(doctor);
 
-        return modelMapper.map(doctor, DoctorResponseDto.class);
+        return mapToDto(doctor);
     }
 
     // DELETE DOCTOR
@@ -145,5 +164,28 @@ public class AdminServiceImpl implements AdminService {
                 todayAppointments,
                 totalDepartments
         );
+    }
+    // ── PRIVATE HELPER ────────────────────────────────────────────
+    private DoctorResponseDto mapToDto(Doctor doctor) {
+        DoctorResponseDto dto = new DoctorResponseDto();
+        dto.setId(doctor.getId());
+        dto.setName(doctor.getName());
+        dto.setEmail(doctor.getEmail());
+        dto.setSpecialization(doctor.getSpecialization());
+        dto.setConsultationFee(doctor.getConsultationFee());
+        dto.setExperienceYears(doctor.getExperienceYears());
+        dto.setPhoneNumber(doctor.getPhoneNumber());
+        dto.setBio(doctor.getBio());
+        dto.setProfileImageUrl(doctor.getProfileImageUrl());
+
+        // ✅ Extract department NAMES not objects
+        dto.setDepartments(
+                doctor.getDepartments()
+                        .stream()
+                        .map(Department::getName)   // ← this is the fix
+                        .collect(java.util.stream.Collectors.toSet())
+        );
+
+        return dto;
     }
     }

@@ -29,13 +29,13 @@ public class InsuranceTests {
                 .validUntil(LocalDate.of(2030, 12, 12))
                 .build();
 
-        Patient patient = insuranceService.assignInsuranceToPatient(insurance, 1L);
+//        Patient patient = insuranceService.assignInsuranceToPatient(insurance, 1L);
 
-        System.out.println(patient);
+//        System.out.println(patient);
+//
+//        var newPatient = insuranceService.removeInsuranceFromPatient(patient.getId());
 
-        var newPatient = insuranceService.disaccociateInsuranceFromPatient(patient.getId());
-
-        System.out.println(newPatient);
+        System.out.println();
     }
 
 

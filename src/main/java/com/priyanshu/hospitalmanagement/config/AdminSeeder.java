@@ -22,13 +22,13 @@ public class AdminSeeder implements CommandLineRunner {
     @Override
     public void run(String... args) {
 
-        Optional<User> admin = userRepository.findByUsername("Priyanshu");
+        Optional<User> admin = userRepository.findByUsername("priyanshjais123@gmail.com");
 
         if(admin.isEmpty()){
 
             User user = new User();
-
-            user.setUsername("Priyanshu");
+                user.setFullName("Priyanshu");
+            user.setUsername("priyanshjais123@gmail.com");
             user.setPassword(passwordEncoder.encode("2401301024"));
 
             Set<RoleType> roles = new HashSet<>();

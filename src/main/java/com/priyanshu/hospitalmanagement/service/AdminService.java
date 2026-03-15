@@ -7,7 +7,8 @@ import java.util.List;
 
 public interface AdminService {
 
-    List<PatientResponseDto> getAllPatients(Integer page, Integer size);
+    List<PatientResponseDto> getAllPatients(Integer page,
+                                           Integer size);
 
     List<DoctorResponseDto> getAllDoctors(int page, int size);
 

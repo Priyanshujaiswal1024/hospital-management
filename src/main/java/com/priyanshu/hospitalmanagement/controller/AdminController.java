@@ -6,6 +6,8 @@ import com.priyanshu.hospitalmanagement.dto.DashboardResponseDto;
 import com.priyanshu.hospitalmanagement.dto.DoctorResponseDto;
 import com.priyanshu.hospitalmanagement.entity.User;
 import com.priyanshu.hospitalmanagement.service.AdminService;
+import com.priyanshu.hospitalmanagement.service.BillService;
+import com.priyanshu.hospitalmanagement.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,12 +20,8 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
-    @GetMapping("/dashboard")
-    public ResponseEntity<DashboardResponseDto> getDashboard() {
+    private final DepartmentService departmentService;
 
-        return ResponseEntity.ok(adminService.getDashboard());
-
-    }
     // GET ALL PATIENTS
     @GetMapping("/doctors")
     public ResponseEntity<List<DoctorResponseDto>> getAllDoctors(
@@ -68,5 +66,12 @@ public class AdminController {
 
         return ResponseEntity.ok(adminService.createAdmin(dto));
     }
+    @PutMapping("/departments/{departmentId}/head-doctor/{doctorId}")
+    public ResponseEntity<String> assignHeadDoctor(
+            @PathVariable Long departmentId,
+            @PathVariable Long doctorId) {
 
-}
+        departmentService.assignHeadDoctor(departmentId, doctorId);
+        return ResponseEntity.ok("Head doctor assigned successfully");
+    }
+    }

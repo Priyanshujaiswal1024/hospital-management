@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Prescription Added</title>
+</head>
+<body style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
+
+<div style="max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; padding: 30px;">
+
+    <h2 style="color: #0B1D3A;">New Prescription Added 💊</h2>
+
+    <p>Dear <strong th:text="${patientName}">Patient</strong>,</p>
+
+    <p>Your doctor has added a new prescription. Here are the details:</p>
+
+    <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+        <tr style="background: #f5f5f5;">
+            <td style="padding: 10px; font-weight: bold;">Doctor</td>
+            <td style="padding: 10px;" th:text="${doctorName}">Dr. Name</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; font-weight: bold;">Diagnosis</td>
+            <td style="padding: 10px;" th:text="${diagnosis}">Diagnosis</td>
+        </tr>
+        <tr style="background: #f5f5f5;">
+            <td style="padding: 10px; font-weight: bold;">Notes</td>
+            <td style="padding: 10px;" th:text="${notes}">Notes</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; font-weight: bold;">Date</td>
+            <td style="padding: 10px;" th:text="${prescriptionDate}">Date</td>
+        </tr>
+    </table>
+
+    <p>Please follow the prescribed medicines and dosage carefully.</p>
+
+    <p style="color: #888; font-size: 13px;">— MedCare Hospital Management System</p>
+
+</div>
+
+</body>
+</html>

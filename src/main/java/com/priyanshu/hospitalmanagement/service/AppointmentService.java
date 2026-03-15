@@ -7,15 +7,15 @@ import com.priyanshu.hospitalmanagement.entity.*;
 import com.priyanshu.hospitalmanagement.entity.type.AppointmentStatus;
 import com.priyanshu.hospitalmanagement.repository.*;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.annotation.Secured;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -27,69 +27,83 @@ public class AppointmentService {
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
-    private final ModelMapper modelMapper;
     private final PrescriptionRepository prescriptionRepository;
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
+    private final MedicineRepository medicineRepository;
+    private final EmailService emailService;    // ← for booking/cancel emails
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // CREATE APPOINTMENT
+    // FIX: findByUserId → findById (Patient ID == User ID via @MapsId)
+    // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     @Secured("ROLE_PATIENT")
     public AppointmentResponseDto createNewAppointment(
             CreateAppointmentRequestDto dto, Long userId) {
-        System.out.println("JWT userId = " + userId);
-        // 1️⃣ Find patient
-        Patient patient = patientRepository.findByUserId(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
 
-        // 2️⃣ Find doctor
+        // FIX: findById works now because Patient ID == User ID via @MapsId
+        Patient patient = patientRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient not found"));
+
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Doctor not found with id: " + dto.getDoctorId()));
+                        "Doctor not found: " + dto.getDoctorId()));
 
-        // 3️⃣ Check doctor availability for that date
+        // Check doctor availability
         LocalDate appointmentDate = dto.getAppointmentTime().toLocalDate();
+        doctorAvailabilityRepository
+                .findByDoctorIdAndDate(doctor.getId(), appointmentDate)
+                .orElseThrow(() -> new RuntimeException(
+                        "Doctor not available on this date"));
 
-        DoctorAvailability availability =
-                doctorAvailabilityRepository
-                        .findByDoctorIdAndDate(doctor.getId(), appointmentDate)
-                        .orElseThrow(() ->
-                                new RuntimeException("Doctor not available on this date"));
-
-        // 4️⃣ Check slot already booked
+        // Check slot not already booked
         Optional<Appointment> existingAppointment =
                 appointmentRepository.findByDoctorAndAppointmentTime(
-                        doctor,
-                        dto.getAppointmentTime()
-                );
-
+                        doctor, dto.getAppointmentTime());
         if (existingAppointment.isPresent()) {
-            throw new RuntimeException("This slot is already booked for the doctor");
+            throw new RuntimeException(
+                    "This slot is already booked for the doctor");
         }
 
-        // 5️⃣ Create appointment
         Appointment appointment = Appointment.builder()
                 .appointmentTime(dto.getAppointmentTime())
                 .reason(dto.getReason())
                 .patient(patient)
                 .doctor(doctor)
-                .status(AppointmentStatus.SCHEDULED)
+                .status(AppointmentStatus.BOOKED)
                 .build();
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        // 6️⃣ Convert to response
+        // Send booking confirmation email to patient
+        emailService.sendAppointmentBooked(
+                patient.getUser().getUsername(),  // email = username
+                patient.getName(),
+                doctor.getName(),
+                saved.getAppointmentTime(),
+                saved.getReason()
+        );
+
         return mapToResponseDto(saved);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // REASSIGN APPOINTMENT TO ANOTHER DOCTOR
+    // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    @PreAuthorize("hasAuthority('appointment:write') or #doctorId == authentication.principal.id")
+    @PreAuthorize("hasAuthority('appointment:write') " +
+            "or #doctorId == authentication.principal.id")
     public AppointmentResponseDto reAssignAppointmentToAnotherDoctor(
             Long appointmentId, Long doctorId) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Appointment not found"));
 
         Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Doctor not found"));
 
         appointment.setDoctor(doctor);
         doctor.getAppointments().add(appointment);
@@ -97,11 +111,17 @@ public class AppointmentService {
         return mapToResponseDto(appointment);
     }
 
-    // @MapsId: Doctor ID == User ID, so findById(userId) works directly
-    @PreAuthorize("hasRole('ADMIN') OR (hasRole('DOCTOR') AND #userId == authentication.principal.id)")
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET ALL APPOINTMENTS OF DOCTOR
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasRole('ADMIN') OR " +
+            "(hasRole('DOCTOR') AND #userId == authentication.principal.id)")
     public List<AppointmentResponseDto> getAllAppointmentsOfDoctor(Long userId) {
+
         Doctor doctor = doctorRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Doctor not found"));
 
         return doctor.getAppointments()
                 .stream()
@@ -109,12 +129,17 @@ public class AppointmentService {
                 .collect(Collectors.toList());
     }
 
-    // @MapsId: Patient ID == User ID, so findById(userId) works directly
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET ALL APPOINTMENTS OF PATIENT (paginated)
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
     public List<AppointmentResponseDto> getAllAppointmentsOfPatient(
             Long userId, int page, int size) {
 
+        // Patient ID == User ID via @MapsId
         Patient patient = patientRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Patient not found"));
 
         return appointmentRepository
                 .findByPatientId(patient.getId(), PageRequest.of(page, size))
@@ -123,38 +148,127 @@ public class AppointmentService {
                 .toList();
     }
 
-    private AppointmentResponseDto mapToResponseDto(Appointment appointment) {
-        return AppointmentResponseDto.builder()
-                .id(appointment.getId())
-                .appointmentTime(appointment.getAppointmentTime())
-                .reason(appointment.getReason())
-                .doctorName(appointment.getDoctor().getName())
-                .patientName(appointment.getPatient().getName())
-                .status(appointment.getStatus().name())
-                .build();
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // CANCEL APPOINTMENT
+    // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     @PreAuthorize("hasRole('PATIENT')")
     public void cancelAppointment(Long appointmentId) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Appointment not found"));
+
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new RuntimeException("Appointment is already cancelled");
+        }
+
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new RuntimeException("Cannot cancel a completed appointment");
+        }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
+
+        // Send cancellation email to patient
+        emailService.sendAppointmentCancelled(
+                appointment.getPatient().getUser().getUsername(),
+                appointment.getPatient().getName(),
+                appointment.getAppointmentTime()
+        );
     }
-    public void addPrescription(Long appointmentId, CreatePrescriptionRequestDto dto) {
+    // ─────────────────────────────────────────────────────────────────────────
+// GET UPCOMING APPOINTMENTS — PATIENT
+// ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<AppointmentResponseDto> getUpcomingAppointmentsForPatient(Long userId) {
+
+        patientRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
+
+        return appointmentRepository
+                .findByPatientIdAndAppointmentTimeAfterOrderByAppointmentTimeAsc(
+                        userId, LocalDateTime.now())
+                .stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+// GET UPCOMING APPOINTMENTS — DOCTOR
+// ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<AppointmentResponseDto> getUpcomingAppointmentsForDoctor(Long userId) {
+
+        doctorRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
+
+        return appointmentRepository
+                .findByDoctorIdAndAppointmentTimeAfterOrderByAppointmentTimeAsc(
+                        userId, LocalDateTime.now())
+                .stream()
+                .map(this::mapToResponseDto)
+                .collect(Collectors.toList());
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // ADD PRESCRIPTION
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional
+    public void addPrescription(Long appointmentId,
+                                CreatePrescriptionRequestDto dto) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new RuntimeException(
+                        "Appointment not found"));
+
+        List<PrescriptionMedicine> prescriptionMedicines = dto.getMedicines()
+                .stream()
+                .map(item -> {
+                    Medicine medicine = medicineRepository
+                            .findById(item.getMedicineId())
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Medicine not found: " + item.getMedicineId()));
+
+                    PrescriptionMedicine pm = new PrescriptionMedicine();
+                    pm.setMedicine(medicine);
+                    pm.setFrequency(item.getFrequency());
+                    pm.setDurationDays(item.getDurationDays());
+                    pm.setQuantity(item.getQuantity());
+                    pm.setInstructions(item.getInstructions());
+                    return pm;
+                })
+                .collect(Collectors.toList());
 
         Prescription prescription = Prescription.builder()
                 .diagnosis(dto.getDiagnosis())
-                .medicines(dto.getMedicines())
+                .medicines(prescriptionMedicines)
                 .notes(dto.getNotes())
                 .appointment(appointment)
                 .build();
 
-
+        prescriptionMedicines.forEach(pm -> pm.setPrescription(prescription));
         prescriptionRepository.save(prescription);
+
+        // Send prescription email to patient
+        emailService.sendPrescriptionAdded(
+                appointment.getPatient().getUser().getUsername(),
+                appointment.getPatient().getName(),
+                appointment.getDoctor().getName(),
+                dto.getDiagnosis(),
+                prescriptionMedicines
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIVATE HELPER
+    // ─────────────────────────────────────────────────────────────────────────
+    private AppointmentResponseDto mapToResponseDto(Appointment a) {
+        return AppointmentResponseDto.builder()
+                .id(a.getId())
+                .appointmentTime(a.getAppointmentTime())
+                .reason(a.getReason())
+                .doctorName(a.getDoctor().getName())
+                .patientName(a.getPatient().getName())
+                .status(a.getStatus().name())
+                .build();
     }
 }

@@ -26,8 +26,8 @@
 # SET FOREIGN_KEY_CHECKS = 0;
 # DROP TABLE IF EXISTS appointment, my_dpt_doctors, department, doctor, app_user;
 # SET FOREIGN_KEY_CHECKS = 1;
-# INSERT INTO department (name) VALUES ('General Medicine');
 # INSERT INTO department (name) VALUES ('Cardiology');
+# INSERT INTO department (name) VALUES ('General Medicine');
 # INSERT INTO department (name) VALUES ('Neurology');
 # INSERT INTO department (name) VALUES ('Orthopedics');
 # INSERT INTO department (name) VALUES ('Pediatrics');
@@ -41,12 +41,31 @@
 # INSERT INTO department (name) VALUES ('Oncology');
 # INSERT INTO department (name) VALUES ('Endocrinology');
 # INSERT INTO department (name) VALUES ('Pulmonology');
-# INSERT INTO department (name) VALUES ('Psychiatry');z
+# INSERT INTO department (name) VALUES ('Psychiatry');
 # INSERT INTO department (name) VALUES ('Radiology');
 # INSERT INTO department (name) VALUES ('Pathology');
 # INSERT INTO department (name) VALUES ('Emergency Medicine');
 # INSERT INTO department (name) VALUES ('Anesthesiology');
 # DROP TABLE IF EXISTS departsment_doctors;
+# USE hospitaldb;
+#
+# SET FOREIGN_KEY_CHECKS = 0;
+#
+# DROP TABLE IF EXISTS medical_record;
+# DROP TABLE IF EXISTS prescription_medicine;
+# DROP TABLE IF EXISTS prescription;
+# DROP TABLE IF EXISTS appointment;
+# DROP TABLE IF EXISTS insurance;
+# DROP TABLE IF EXISTS patient;
+# DROP TABLE IF EXISTS doctor;
+# DROP TABLE IF EXISTS department_doctors;
+# DROP TABLE IF EXISTS department;
+# DROP TABLE IF EXISTS doctor_availability;
+# DROP TABLE IF EXISTS bill;
+# DROP TABLE IF EXISTS app_user;
+#
+# SET FOREIGN_KEY_CHECKS = 1;
+
 select *
 from patient;
 select *
@@ -56,7 +75,7 @@ from user_roles;
 select *
 from insurance;
 select *
-from prescription;
+from prescriptions;
 select *
 from appointment;
 select *
@@ -67,3 +86,6 @@ select *
 from department_doctors;
 select *
 from doctor;
+# SHOW CREATE TABLE appointment;
+# ALTER TABLE appointment
+#     MODIFY status ENUM('BOOKED','CONFIRMED','COMPLETED','CANCELLED');

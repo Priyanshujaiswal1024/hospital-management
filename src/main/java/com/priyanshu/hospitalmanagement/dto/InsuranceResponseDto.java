@@ -3,6 +3,8 @@ package com.priyanshu.hospitalmanagement.dto;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Data
 public class InsuranceResponseDto {
@@ -10,5 +12,7 @@ public class InsuranceResponseDto {
     private String provider;
     private String policyNumber;
     private LocalDate validUntil;
+    private LocalDateTime createdAt;
+    private Long patientId;
 
 }
