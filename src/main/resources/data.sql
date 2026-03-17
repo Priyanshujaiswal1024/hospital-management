@@ -66,26 +66,43 @@
 #
 # SET FOREIGN_KEY_CHECKS = 1;
 
-select *
-from patient;
-select *
-from app_user;
-select *
-from user_roles;
-select *
-from insurance;
-select *
-from prescriptions;
-select *
-from appointment;
+# SELECT user_id, name, father_name, gender, birth_date, address, city
+# FROM patient
+# WHERE user_id = (SELECT id FROM app_user WHERE username = 'pk@gmail.com');
+#
+# select *
+# from patient;
+# select *
+# from app_user;
+# select *
+# from user_roles;
+# select *
+# from insurance;
+# select *
+# from prescriptions;
+# select *
+# from appointment;
 select *
 from department;
-select *
-from doctor_availability;
+# select *
+# from doctor_availability;
 select *
 from department_doctors;
 select *
 from doctor;
+# SELECT * FROM doctor_availability
+# WHERE doctor_id = (
+#     SELECT id FROM doctor
+#     WHERE email = 'dr.priya@hospital.com'
+# );
+     update doctor set specialization ='CardioLogy' where user_id=3;
+# UPDATE department
+# SET head_doctor_id = NULL
+# WHERE id = 1;
+# UPDATE doctor
+# SET id = 3
+# WHERE user_id = 3;
+# java.lang.RuntimeException: Availability already set for this date: 2026-03-17
 # SHOW CREATE TABLE appointment;
 # ALTER TABLE appointment
 #     MODIFY status ENUM('BOOKED','CONFIRMED','COMPLETED','CANCELLED');

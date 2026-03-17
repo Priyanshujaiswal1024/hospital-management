@@ -120,7 +120,7 @@ public class PatientService {
     // FIX: removed setPhone() — phone lives on User, update via user.setPhone()
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
-    public PatientResponseDto updatePatientProfile(UpdatePatientRequestDto dto) {
+    public PatientResponseDto updatePatientProfile(UpdatePatientProfileRequestDto dto) {
 
         String username = getLoggedInUsername();
 
@@ -134,7 +134,11 @@ public class PatientService {
             patient.getUser().setPhone(dto.getPhone());
             userRepository.save(patient.getUser());
         }
-
+        if (dto.getName() != null)        patient.setName(dto.getName());
+        if (dto.getFatherName() != null)  patient.setFatherName(dto.getFatherName());
+        if (dto.getGender() != null)      patient.setGender(dto.getGender());
+        if (dto.getBirthDate() != null)   patient.setBirthDate(dto.getBirthDate());
+        if (dto.getBloodGroup() != null)  patient.setBloodGroup(dto.getBloodGroup());
         if (dto.getAddress() != null) {
             patient.setAddress(dto.getAddress());
         }

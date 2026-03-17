@@ -3,6 +3,7 @@ package com.priyanshu.hospitalmanagement.service;
 import com.priyanshu.hospitalmanagement.dto.DoctorAvailabilityRequestDto;
 import com.priyanshu.hospitalmanagement.dto.DoctorResponseDto;
 import com.priyanshu.hospitalmanagement.dto.OnboardDoctorRequestDto;
+import com.priyanshu.hospitalmanagement.dto.UpdateDoctorProfileRequestDto;
 import com.priyanshu.hospitalmanagement.entity.*;
 import com.priyanshu.hospitalmanagement.entity.type.RoleType;
 import com.priyanshu.hospitalmanagement.repository.*;
@@ -128,24 +129,19 @@ public class DoctorService {
 
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new RuntimeException("Doctor not found: " + doctorId));
+        DoctorAvailability availability = doctorAvailabilityRepository
+                .findByDoctorIdAndDate(doctorId, dto.getDate())
+                .orElse(DoctorAvailability.builder().doctor(doctor).date(dto.getDate()).build());
 
-        // Guard: prevent duplicate availability slot for same date
-        boolean slotExists = doctorAvailabilityRepository
-                .existsByDoctorIdAndDate(doctorId, dto.getDate());
-        if (slotExists) {
-            throw new RuntimeException(
-                    "Availability already set for this date: " + dto.getDate());
-        }
-
-        DoctorAvailability availability = DoctorAvailability.builder()
-                .doctor(doctor)         // ← set only once (was set twice before)
-                .date(dto.getDate())
-                .startTime(dto.getStartTime())
-                .endTime(dto.getEndTime())
-                .build();
+        availability.setStartTime(dto.getStartTime());
+        availability.setEndTime(dto.getEndTime());
 
         doctorAvailabilityRepository.save(availability);
-        log.info("Availability added for doctor {} on {}", doctorId, dto.getDate());
+        log.info("Availability saved for doctor {} on {}", doctorId, dto.getDate());
+        // Guard: prevent duplicate availability slot for same date
+
+
+
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -168,5 +164,22 @@ public class DoctorService {
                         .collect(Collectors.toSet())
         );
         return dto;
+    }
+    @Transactional(readOnly = true)
+    public DoctorResponseDto getDoctorById(Long id) {
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + id));
+        return mapToDto(doctor);
+    }
+
+    @Transactional
+    public DoctorResponseDto updateDoctorProfile(Long id, UpdateDoctorProfileRequestDto dto) {
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found: " + id));
+
+        if (dto.getPhoneNumber() != null) doctor.setPhoneNumber(dto.getPhoneNumber());
+        if (dto.getBio() != null)         doctor.setBio(dto.getBio());
+
+        return mapToDto(doctorRepository.save(doctor));
     }
 }

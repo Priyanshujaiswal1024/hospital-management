@@ -6,6 +6,7 @@ import com.priyanshu.hospitalmanagement.entity.UserPrincipal;
 import com.priyanshu.hospitalmanagement.repository.InsuranceRepository;
 import com.priyanshu.hospitalmanagement.repository.MedicalRecordRepository;
 import com.priyanshu.hospitalmanagement.service.*;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -40,8 +41,12 @@ public class PatientController {
                         .getAuthentication()
                         .getPrincipal();
 
-        return ResponseEntity.ok(
-                patientService.getPatientByUserId(userPrincipal.getId()));
+        try {
+            return ResponseEntity.ok(
+                    patientService.getPatientByUserId(userPrincipal.getId()));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build(); // 404
+        }
     }
 
 
@@ -64,18 +69,17 @@ public class PatientController {
      Update Patient Profile
      -----------------------------------------
      */
+    // PatientController.java mein bhi:
     @PutMapping("/profile")
     public PatientResponseDto updateProfile(
-            @RequestBody UpdatePatientRequestDto dto,
+            @RequestBody UpdatePatientProfileRequestDto dto, // ← same naam
             Authentication authentication) {
-
-        return patientService.updatePatientProfile(dto); // username already read inside service
+        return patientService.updatePatientProfile(dto);
     }
 
     @PatchMapping("/profile")
     public PatientResponseDto patchProfile(
-            @RequestBody UpdatePatientRequestDto dto) {
-
+            @RequestBody UpdatePatientProfileRequestDto dto) { // ← same naam
         return patientService.updatePatientProfile(dto);
     }
     /*

@@ -1,8 +1,6 @@
 package com.priyanshu.hospitalmanagement.controller;
 
-import com.priyanshu.hospitalmanagement.dto.AppointmentResponseDto;
-import com.priyanshu.hospitalmanagement.dto.CreatePrescriptionRequestDto;
-import com.priyanshu.hospitalmanagement.dto.DoctorAvailabilityRequestDto;
+import com.priyanshu.hospitalmanagement.dto.*;
 import com.priyanshu.hospitalmanagement.entity.UserPrincipal;
 import com.priyanshu.hospitalmanagement.service.AppointmentService;
 import com.priyanshu.hospitalmanagement.service.DoctorService;
@@ -37,7 +35,7 @@ public class DoctorController {
                 appointmentService.reAssignAppointmentToAnotherDoctor(
                         appointmentId, doctorId));
     }
-    @PostMapping("/doctor/availability")
+    @PostMapping("/availability")
     public ResponseEntity<String> addDoctorAvailability(
             @RequestBody DoctorAvailabilityRequestDto dto) {
         UserPrincipal userPrincipal =
@@ -75,6 +73,30 @@ public class DoctorController {
             @RequestBody CreatePrescriptionRequestDto dto) {
 
         appointmentService.addPrescription(appointmentId, dto);
+    }
+    // GET — apna profile dekho
+    @GetMapping("/profile")
+    public ResponseEntity<DoctorResponseDto> getMyProfile() {
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+        return ResponseEntity.ok(
+                doctorService.getDoctorById(userPrincipal.getId()));
+    }
+
+    // PATCH — sirf phoneNumber aur bio edit kar sakte hain
+    @PatchMapping("/profile")
+    public ResponseEntity<DoctorResponseDto> updateMyProfile(
+            @RequestBody UpdateDoctorProfileRequestDto dto) {
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getPrincipal();
+        return ResponseEntity.ok(
+                doctorService.updateDoctorProfile(userPrincipal.getId(), dto));
     }
 }
 //```

@@ -1,0 +1,104 @@
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth }  from './auth/AuthContext';
+import ProtectedRoute             from './components/ProtectedRoute';
+
+// auth
+import Login          from './pages/auth/Login';
+import Signup         from './pages/auth/Signup';
+import VerifyOtp      from './pages/auth/VerifyOtp';
+import ForgotPassword from './pages/auth/ForgotPassword';
+
+// patient
+import PatientLayout      from './pages/patient/PatientLayout';
+import PatientProfile     from './pages/patient/PatientProfile';
+import CreateProfile      from './pages/patient/CreateProfile';
+import Appointments       from './pages/patient/Appointments';
+import FindDoctors        from './pages/patient/FindDoctors';
+import BookAppointment    from './pages/patient/BookAppointment';
+import Departments        from './pages/patient/Departments';
+import Prescriptions      from './pages/patient/Prescriptions';
+import Bills              from './pages/patient/Bills';
+import Insurance          from './pages/patient/Insurance';
+import MedicalRecords     from './pages/patient/MedicalRecords';
+import Medicines from './pages/patient/Medicines';
+// doctor
+import DoctorLayout       from './pages/doctor/DoctorLayout';
+import DoctorDashboard    from './pages/doctor/DoctorDashboard';
+import DoctorAppointments from './pages/doctor/DoctorAppointments';
+import SetAvailability    from './pages/doctor/SetAvailability';
+import DoctorPrescriptions    from './pages/doctor/DoctorPrescriptions.jsx';
+import DoctorMedicalRecords from './pages/doctor/DoctorMedicalRecords.jsx';
+import DoctorProfile      from './pages/doctor/DoctorProfile';
+import DoctorMedicines from "./pages/doctor/DoctorMedicines.jsx";
+function RoleRedirect() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" />;
+  if (user.role === 'PATIENT') return <Navigate to="/patient/profile" />;
+  if (user.role === 'DOCTOR')  return <Navigate to="/doctor/dashboard" />;
+  if (user.role === 'ADMIN')   return <Navigate to="/admin/dashboard" />;
+  return <Navigate to="/login" />;
+}
+
+export default function App() {
+  return (
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+
+            {/* public */}
+            <Route path="/"                  element={<RoleRedirect />} />
+            <Route path="/login"             element={<Login />} />
+            <Route path="/signup"            element={<Signup />} />
+            <Route path="/verify-otp"        element={<VerifyOtp />} />
+            <Route path="/forgot-password"   element={<ForgotPassword />} />
+
+            {/* patient — create profile outside layout */}
+            <Route path="/patient/create-profile" element={
+              <ProtectedRoute allowedRole="PATIENT">
+                <CreateProfile />
+              </ProtectedRoute>
+            } />
+
+            {/* patient — all pages inside sidebar layout */}
+            <Route path="/patient" element={
+              <ProtectedRoute allowedRole="PATIENT">
+                <PatientLayout />
+              </ProtectedRoute>
+            }>
+              <Route index                          element={<Navigate to="profile" />} />
+              <Route path="profile"                element={<PatientProfile />} />
+              <Route path="appointments"           element={<Appointments />} />
+              <Route path="doctors"                element={<FindDoctors />} />
+              <Route path="doctors/:doctorId/book" element={<BookAppointment />} />
+              <Route path="departments"            element={<Departments />} />
+              <Route path="prescriptions"          element={<Prescriptions />} />
+              <Route path="bills"                  element={<Bills />} />
+              <Route path="insurance"              element={<Insurance />} />
+              <Route path="medical-records"        element={<MedicalRecords />} />
+              <Route path="medicines" element={<Medicines />} />
+            </Route>
+
+            {/* doctor — all pages inside sidebar layout */}
+            <Route path="/doctor" element={
+              <ProtectedRoute allowedRole="DOCTOR">
+                <DoctorLayout />
+              </ProtectedRoute>
+            }>
+              <Route index                 element={<Navigate to="dashboard" />} />
+              <Route path="dashboard"      element={<DoctorDashboard />} />
+              <Route path="appointments"   element={<DoctorAppointments />} />
+              <Route path="availability"   element={<SetAvailability />} />
+              <Route path="profile"                                element={<DoctorProfile />} />
+              <Route path="appointments/:appointmentId/prescribe"  element={<DoctorPrescriptions />} />
+              <Route path="appointments/:appointmentId/record"     element={<DoctorMedicalRecords />} />
+              {/* sidebar list pages */}
+              <Route path="medicines"    element={<DoctorMedicines />} />
+              <Route path="prescriptions" element={<DoctorPrescriptions />} />
+              <Route path="records"      element={<DoctorMedicalRecords />} />
+            </Route>
+
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+  );
+}

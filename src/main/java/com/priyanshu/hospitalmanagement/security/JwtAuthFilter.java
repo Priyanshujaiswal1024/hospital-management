@@ -10,6 +10,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -23,6 +24,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     private final JWTService authUtil;
     private final ApplicationContext context;
     private final TokenBlacklist tokenBlacklist;
+    private final UserDetailsService userDetailsService;
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -37,6 +39,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
 
             token = authHeader.substring(7);
+            try{
             // ── BLACKLIST CHECK ───────────────────────────────────────────
             // If token was logged out, reject immediately
             if (tokenBlacklist.isBlacklisted(token)) {
@@ -49,6 +52,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             }
             // ─────────────────────────────────────────────────────────────
             username = authUtil.getUsernameFromToken(token);
+        } catch (Exception e) {
+                filterChain.doFilter(request, response);
+                return;
+            }
         }
 
         if (username != null &&
@@ -87,6 +94,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.equals("/auth/login")
                 || path.equals("/auth/register")
+                || path.equals("/auth/signup")
                 || path.equals("/auth/verify-otp")
                 || path.equals("/auth/resend-otp")
                 || path.startsWith("/public");
