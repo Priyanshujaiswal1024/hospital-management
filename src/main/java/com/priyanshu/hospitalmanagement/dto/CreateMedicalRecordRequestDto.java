@@ -1,19 +1,22 @@
 package com.priyanshu.hospitalmanagement.dto;
 
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
+
+import java.time.LocalDate;
+
 
 @Data
 public class CreateMedicalRecordRequestDto {
-
-    @NotNull(message = "Appointment ID is required")
-    private Long appointmentId;
-
-    // FIX: Optional — prescription may not exist at record creation time
+    private Long appointmentId;      // required
     private Long prescriptionId;
+     // ✅ REQUIRED
 
-    @NotNull(message = "Diagnosis is required")
-    private String diagnosis;
+    private String symptoms;      // optional
+    private String diagnosis;     // ✅ main
+    private String treatmentPlan; // ✅ renamed (better)
 
-    private String notes;
+    private String testsRecommended; // optional
+    private String notes;            // ✅ main
+
+    private LocalDate followUpDate;  // optional
 }

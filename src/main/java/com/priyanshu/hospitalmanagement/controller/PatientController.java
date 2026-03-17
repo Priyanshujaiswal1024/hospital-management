@@ -1,10 +1,8 @@
 package com.priyanshu.hospitalmanagement.controller;
 
 import com.priyanshu.hospitalmanagement.dto.*;
-import com.priyanshu.hospitalmanagement.entity.MedicalRecord;
+import com.priyanshu.hospitalmanagement.entity.Insurance;
 import com.priyanshu.hospitalmanagement.entity.UserPrincipal;
-import com.priyanshu.hospitalmanagement.repository.InsuranceRepository;
-import com.priyanshu.hospitalmanagement.repository.MedicalRecordRepository;
 import com.priyanshu.hospitalmanagement.service.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -23,194 +21,143 @@ public class PatientController {
 
     private final PatientService patientService;
     private final AppointmentService appointmentService;
-  private final   PrescriptionService prescriptionService;
-  private final MedicalRecordRepository medicalRecordRepository;
-  private final InsuranceService insuranceService;
+    private final PrescriptionService prescriptionService;
+    private final MedicalRecordService medicalRecordService;
+    private final InsuranceService insuranceService;
 
-    /*
-     -----------------------------------------
-     Get Patient Profile
-     -----------------------------------------
-     */
+    // ─────────────────────────────────────────────────────────────────────────
+    // PROFILE
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping("/profile")
     public ResponseEntity<PatientResponseDto> getPatientProfile() {
-
-        UserPrincipal userPrincipal =
-                (UserPrincipal) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
         try {
             return ResponseEntity.ok(
-                    patientService.getPatientByUserId(userPrincipal.getId()));
+                    patientService.getPatientByUserId(getPrincipal().getId()));
         } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build(); // 404
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
     }
 
-
-    /*
-     -----------------------------------------
-     Create Patient Profile
-     -----------------------------------------
-     */
     @PostMapping("/profile")
     public ResponseEntity<PatientResponseDto> createPatientProfile(
             @RequestBody CreatePatientProfileRequestDto dto) {
-
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(patientService.createPatientProfile(dto));
     }
 
-
-    /*
-     -----------------------------------------
-     Update Patient Profile
-     -----------------------------------------
-     */
-    // PatientController.java mein bhi:
     @PutMapping("/profile")
-    public PatientResponseDto updateProfile(
-            @RequestBody UpdatePatientProfileRequestDto dto, // ← same naam
-            Authentication authentication) {
-        return patientService.updatePatientProfile(dto);
+    public ResponseEntity<PatientResponseDto> updateProfile(
+            @RequestBody UpdatePatientProfileRequestDto dto) {
+        return ResponseEntity.ok(patientService.updatePatientProfile(dto));
     }
 
     @PatchMapping("/profile")
-    public PatientResponseDto patchProfile(
-            @RequestBody UpdatePatientProfileRequestDto dto) { // ← same naam
-        return patientService.updatePatientProfile(dto);
+    public ResponseEntity<PatientResponseDto> patchProfile(
+            @RequestBody UpdatePatientProfileRequestDto dto) {
+        return ResponseEntity.ok(patientService.updatePatientProfile(dto));
     }
-    /*
-     -----------------------------------------
-     Add Insurance
-     -----------------------------------------
-     */
 
-
-    /*
-     -----------------------------------------
-     Create Appointment
-     -----------------------------------------
-     */
-    @PostMapping("/appointments")
-    public ResponseEntity<AppointmentResponseDto> createNewAppointment(
-            @RequestBody CreateAppointmentRequestDto dto) {
-
-        UserPrincipal userPrincipal =
-                (UserPrincipal) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body(appointmentService.createNewAppointment(
-                        dto,
-                        userPrincipal.getId()
-                ));
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // INSURANCE
+    // ─────────────────────────────────────────────────────────────────────────
     @GetMapping("/insurance")
     public ResponseEntity<InsuranceResponseDto> getMyInsurance() {
         return ResponseEntity.ok(insuranceService.getMyInsurance());
     }
 
-    /*
-     -----------------------------------------
-     Cancel Appointment
-     -----------------------------------------
-     */
-    @PatchMapping("/appointments/{id}/cancel")
-    public ResponseEntity<Void> cancelAppointment(@PathVariable Long id) {
+    @PostMapping("/insurance")
+    public ResponseEntity<InsuranceResponseDto> addOrUpdateInsurance(
+            @RequestBody CreateInsuranceRequestDto dto) {
 
-        appointmentService.cancelAppointment(id);
+        Insurance insurance = new Insurance();
+        insurance.setProvider(dto.getProvider());
+        insurance.setPolicyNumber(dto.getPolicyNumber());
+        insurance.setValidUntil(dto.getValidUntil());
 
-        return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(
+                insuranceService.assignInsuranceToPatient(
+                        getPrincipal().getId(), insurance));
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // APPOINTMENTS
+    // ─────────────────────────────────────────────────────────────────────────
+    @PostMapping("/appointments")
+    public ResponseEntity<AppointmentResponseDto> createNewAppointment(
+            @RequestBody CreateAppointmentRequestDto dto) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(appointmentService.createNewAppointment(
+                        dto, getPrincipal().getId()));
+    }
 
-    /*
-     -----------------------------------------
-     Get All Appointments of Patient
-     -----------------------------------------
-     */
     @GetMapping("/appointments")
     public ResponseEntity<List<AppointmentResponseDto>> getAllAppointments(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-
-        UserPrincipal userPrincipal =
-                (UserPrincipal) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
         return ResponseEntity.ok(
                 appointmentService.getAllAppointmentsOfPatient(
-                        userPrincipal.getId(),
-                        page,
-                        size
-                ));
+                        getPrincipal().getId(), page, size));
     }
+
     @GetMapping("/appointments/upcoming")
     public ResponseEntity<List<AppointmentResponseDto>> getUpcomingAppointments() {
-
-        UserPrincipal userPrincipal =
-                (UserPrincipal) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
         return ResponseEntity.ok(
-                appointmentService.getUpcomingAppointmentsForPatient(
-                        userPrincipal.getId()
-                )
-        );
+                appointmentService.getAllAppointmentsOfPatient(
+                                getPrincipal().getId(), 0, 100)
+                        .stream()
+                        .filter(a -> a.getStatus().equals("BOOKED")
+                                || a.getStatus().equals("CONFIRMED"))
+                        .toList());
     }
 
-    @PostMapping("/insurance")
-    public ResponseEntity<InsuranceResponseDto> addInsurance(
-            @RequestBody CreateInsuranceRequestDto dto) {
-
-        UserPrincipal userPrincipal =
-                (UserPrincipal) SecurityContextHolder
-                        .getContext()
-                        .getAuthentication()
-                        .getPrincipal();
-
-        InsuranceResponseDto response =
-                patientService.addInsurance(userPrincipal.getId(), dto);
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    @PatchMapping("/appointments/{id}/cancel")
+    public ResponseEntity<Void> cancelAppointment(@PathVariable Long id) {
+        appointmentService.cancelAppointment(id);
+        return ResponseEntity.noContent().build();
     }
-    @GetMapping("/Prescription")
 
-    public List<PrescriptionResponseDto> getMyPrescriptions(Authentication authentication) {
-
-        String username = authentication.getName();
-
-        return prescriptionService.getPrescriptionsForLoggedInPatient(username);
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRESCRIPTIONS
+    // ─────────────────────────────────────────────────────────────────────────
+    @GetMapping("/prescriptions")
+    public ResponseEntity<List<PrescriptionResponseDto>> getMyPrescriptions(
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                prescriptionService.getPrescriptionsForLoggedInPatient(
+                        authentication.getName()));
     }
-//    @GetMapping("/{patientId}/medical-record")
-//    public ResponseEntity<List<MedicalRecordResponseDto>> getPatientRecords(
-//            @PathVariable Long patientId
-//    ) {
-//
-//        List<MedicalRecord> records =
-//                medicalRecordRepository.findByPatient_Id(patientId);
-//
-//        return ResponseEntity.ok(
-//                records.stream()
-//                        .map(r -> MedicalRecordResponseDto.builder()
-//                                .id(r.getId())
-//                                .diagnosis(r.getDiagnosis())
-//                                .notes(r.getNotes())
-//                                .patientId(r.getPatient().getId())
-//                                .doctorId(r.getDoctor().getId())
-//                                .appointmentId(r.getAppointment().getId())
-//                                .visitDate(r.getVisitDate())
-//                                .build())
-//                        .toList()
-//        );
-//    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MEDICAL RECORDS
+    // ─────────────────────────────────────────────────────────────────────────
+    @GetMapping("/medical-records")
+    public ResponseEntity<List<MedicalRecordResponseDto>> getMyMedicalRecords(
+            Authentication authentication) {
+        return ResponseEntity.ok(
+                medicalRecordService.getMedicalRecordsForLoggedInPatient(
+                        authentication.getName()));
+    }
+
+    @GetMapping("/medical-records/{recordId}/download")
+    public ResponseEntity<byte[]> downloadMedicalRecord(
+            @PathVariable Long recordId,
+            Authentication authentication) throws Exception {
+        byte[] pdf = medicalRecordService.downloadMedicalRecordPdf(
+                recordId, authentication.getName());
+        return ResponseEntity.ok()
+                .header("Content-Type", "application/pdf")
+                .header("Content-Disposition",
+                        "attachment; filename=medical-record-" + recordId + ".pdf")
+                .body(pdf);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PRIVATE HELPER
+    // ─────────────────────────────────────────────────────────────────────────
+    private UserPrincipal getPrincipal() {
+        return (UserPrincipal) SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getPrincipal();
+    }
 }

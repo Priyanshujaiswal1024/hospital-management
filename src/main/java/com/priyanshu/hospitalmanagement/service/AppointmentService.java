@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -30,40 +31,35 @@ public class AppointmentService {
     private final PrescriptionRepository prescriptionRepository;
     private final DoctorAvailabilityRepository doctorAvailabilityRepository;
     private final MedicineRepository medicineRepository;
-    private final EmailService emailService;    // ← for booking/cancel emails
+    private final EmailService emailService;
+    private final MedicalRecordRepository medicalRecordRepository;
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE APPOINTMENT
-    // FIX: findByUserId → findById (Patient ID == User ID via @MapsId)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     @Secured("ROLE_PATIENT")
     public AppointmentResponseDto createNewAppointment(
             CreateAppointmentRequestDto dto, Long userId) {
 
-        // FIX: findById works now because Patient ID == User ID via @MapsId
         Patient patient = patientRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Patient not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
 
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Doctor not found: " + dto.getDoctorId()));
 
-        // Check doctor availability
         LocalDate appointmentDate = dto.getAppointmentTime().toLocalDate();
         doctorAvailabilityRepository
                 .findByDoctorIdAndDate(doctor.getId(), appointmentDate)
                 .orElseThrow(() -> new RuntimeException(
                         "Doctor not available on this date"));
 
-        // Check slot not already booked
         Optional<Appointment> existingAppointment =
                 appointmentRepository.findByDoctorAndAppointmentTime(
                         doctor, dto.getAppointmentTime());
         if (existingAppointment.isPresent()) {
-            throw new RuntimeException(
-                    "This slot is already booked for the doctor");
+            throw new RuntimeException("This slot is already booked for the doctor");
         }
 
         Appointment appointment = Appointment.builder()
@@ -76,9 +72,8 @@ public class AppointmentService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
-        // Send booking confirmation email to patient
         emailService.sendAppointmentBooked(
-                patient.getUser().getUsername(),  // email = username
+                patient.getUser().getUsername(),
                 patient.getName(),
                 doctor.getName(),
                 saved.getAppointmentTime(),
@@ -98,12 +93,10 @@ public class AppointmentService {
             Long appointmentId, Long doctorId) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Appointment not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Doctor not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
 
         appointment.setDoctor(doctor);
         doctor.getAppointments().add(appointment);
@@ -120,8 +113,7 @@ public class AppointmentService {
     public List<AppointmentResponseDto> getAllAppointmentsOfDoctor(Long userId) {
 
         Doctor doctor = doctorRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Doctor not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
 
         return doctor.getAppointments()
                 .stream()
@@ -136,10 +128,8 @@ public class AppointmentService {
     public List<AppointmentResponseDto> getAllAppointmentsOfPatient(
             Long userId, int page, int size) {
 
-        // Patient ID == User ID via @MapsId
         Patient patient = patientRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Patient not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
 
         return appointmentRepository
                 .findByPatientId(patient.getId(), PageRequest.of(page, size))
@@ -156,49 +146,29 @@ public class AppointmentService {
     public void cancelAppointment(Long appointmentId) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Appointment not found"));
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
             throw new RuntimeException("Appointment is already cancelled");
         }
-
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
             throw new RuntimeException("Cannot cancel a completed appointment");
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
 
-        // Send cancellation email to patient
         emailService.sendAppointmentCancelled(
                 appointment.getPatient().getUser().getUsername(),
                 appointment.getPatient().getName(),
                 appointment.getAppointmentTime()
         );
     }
-    // ─────────────────────────────────────────────────────────────────────────
-// GET UPCOMING APPOINTMENTS — PATIENT
-// ─────────────────────────────────────────────────────────────────────────
-    @Transactional(readOnly = true)
-    public List<AppointmentResponseDto> getUpcomingAppointmentsForPatient(Long userId) {
-
-        patientRepository.findById(userId)
-                .orElseThrow(() -> new EntityNotFoundException("Patient not found"));
-
-        return appointmentRepository
-                .findByPatientIdAndAppointmentTimeAfterOrderByAppointmentTimeAsc(
-                        userId, LocalDateTime.now())
-                .stream()
-                .map(this::mapToResponseDto)
-                .collect(Collectors.toList());
-    }
 
     // ─────────────────────────────────────────────────────────────────────────
-// GET UPCOMING APPOINTMENTS — DOCTOR
-// ─────────────────────────────────────────────────────────────────────────
+    // GET UPCOMING APPOINTMENTS — DOCTOR
+    // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
     public List<AppointmentResponseDto> getUpcomingAppointmentsForDoctor(Long userId) {
-
         doctorRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
 
@@ -206,54 +176,96 @@ public class AppointmentService {
                 .findByDoctorIdAndAppointmentTimeAfterOrderByAppointmentTimeAsc(
                         userId, LocalDateTime.now())
                 .stream()
+                .filter(a -> a.getStatus() == AppointmentStatus.BOOKED
+                        || a.getStatus() == AppointmentStatus.CONFIRMED)
                 .map(this::mapToResponseDto)
                 .collect(Collectors.toList());
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MARK APPOINTMENT COMPLETED
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional
+    public AppointmentResponseDto markAppointmentCompleted(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+
+        if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+            throw new RuntimeException("Cannot complete a cancelled appointment");
+        }
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new RuntimeException("Appointment already completed");
+        }
+
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        return mapToResponseDto(appointmentRepository.save(appointment));
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // ADD PRESCRIPTION
+    // FIX 1: Removed diagnosis/notes — those belong to MedicalRecord
+    // FIX 2: Replaced Prescription.builder() with new Prescription()
+    //         since entity has no @Builder
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public void addPrescription(Long appointmentId,
                                 CreatePrescriptionRequestDto dto) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException(
-                        "Appointment not found"));
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
 
-        List<PrescriptionMedicine> prescriptionMedicines = dto.getMedicines()
-                .stream()
-                .map(item -> {
-                    Medicine medicine = medicineRepository
-                            .findById(item.getMedicineId())
-                            .orElseThrow(() -> new RuntimeException(
-                                    "Medicine not found: " + item.getMedicineId()));
+        // Prevent duplicate
+        if (prescriptionRepository.existsByAppointmentId(appointmentId)) {
+            throw new RuntimeException(
+                    "Prescription already exists for appointment: " + appointmentId);
+        }
 
-                    PrescriptionMedicine pm = new PrescriptionMedicine();
-                    pm.setMedicine(medicine);
-                    pm.setFrequency(item.getFrequency());
-                    pm.setDurationDays(item.getDurationDays());
-                    pm.setQuantity(item.getQuantity());
-                    pm.setInstructions(item.getInstructions());
-                    return pm;
-                })
-                .collect(Collectors.toList());
+        Prescription prescription = new Prescription();   // FIX 2: no @Builder on entity
+        prescription.setAppointment(appointment);
+        // FIX 1: NO diagnosis, NO notes
 
-        Prescription prescription = Prescription.builder()
-                .diagnosis(dto.getDiagnosis())
-                .medicines(prescriptionMedicines)
-                .notes(dto.getNotes())
-                .appointment(appointment)
-                .build();
+        List<PrescriptionMedicine> prescriptionMedicines = new ArrayList<>();
 
-        prescriptionMedicines.forEach(pm -> pm.setPrescription(prescription));
+        if (dto.getMedicines() != null) {
+            for (var item : dto.getMedicines()) {
+                Medicine medicine = medicineRepository
+                        .findById(item.getMedicineId())
+                        .orElseThrow(() -> new RuntimeException(
+                                "Medicine not found: " + item.getMedicineId()));
+
+                // Stock check
+                int qty = item.getQuantity() != null ? item.getQuantity() : 1;
+                if (medicine.getStock() < qty) {
+                    throw new RuntimeException(
+                            "Insufficient stock for: " + medicine.getName()
+                                    + ". Available: " + medicine.getStock()
+                                    + ", Required: " + qty);
+                }
+
+                PrescriptionMedicine pm = new PrescriptionMedicine();
+                pm.setMedicine(medicine);
+                pm.setFrequency(item.getFrequency());
+                pm.setDurationDays(item.getDurationDays());
+                pm.setQuantity(qty);
+                pm.setInstructions(item.getInstructions());
+                pm.setPrescription(prescription);
+                prescriptionMedicines.add(pm);
+
+                // Deduct stock
+                medicine.setStock(medicine.getStock() - qty);
+                medicineRepository.save(medicine);
+            }
+        }
+
+        prescription.setMedicines(prescriptionMedicines);
         prescriptionRepository.save(prescription);
 
-        // Send prescription email to patient
+        // Send prescription email — no diagnosis since it's not on prescription
         emailService.sendPrescriptionAdded(
                 appointment.getPatient().getUser().getUsername(),
                 appointment.getPatient().getName(),
                 appointment.getDoctor().getName(),
-                dto.getDiagnosis(),
+                null,                    // FIX 1: no diagnosis here
                 prescriptionMedicines
         );
     }
@@ -262,6 +274,17 @@ public class AppointmentService {
     // PRIVATE HELPER
     // ─────────────────────────────────────────────────────────────────────────
     private AppointmentResponseDto mapToResponseDto(Appointment a) {
+
+        Long prescriptionId = prescriptionRepository
+                .findByAppointmentId(a.getId())
+                .map(Prescription::getId)
+                .orElse(null);
+
+        Long medicalRecordId = medicalRecordRepository
+                .findByAppointment_Id(a.getId())
+                .map(MedicalRecord::getId)
+                .orElse(null);
+
         return AppointmentResponseDto.builder()
                 .id(a.getId())
                 .appointmentTime(a.getAppointmentTime())
@@ -269,6 +292,16 @@ public class AppointmentService {
                 .doctorName(a.getDoctor().getName())
                 .patientName(a.getPatient().getName())
                 .status(a.getStatus().name())
+                .prescriptionId(prescriptionId)
+                .medicalRecordId(medicalRecordId)
                 .build();
+    }
+    @Transactional(readOnly = true)
+    public List<AppointmentResponseDto> getAllAppointments(int page, int size) {
+        return appointmentRepository
+                .findAll(PageRequest.of(page, size))
+                .stream()
+                .map(this::mapToResponseDto)
+                .toList();
     }
 }

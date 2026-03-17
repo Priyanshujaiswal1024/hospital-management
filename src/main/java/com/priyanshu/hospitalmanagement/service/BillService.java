@@ -12,6 +12,7 @@ import com.priyanshu.hospitalmanagement.repository.AppointmentRepository;
 import com.priyanshu.hospitalmanagement.repository.BillRepository;
 import com.priyanshu.hospitalmanagement.repository.PatientRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -302,5 +303,14 @@ public class BillService {
         cell.setBorder(Rectangle.NO_BORDER);
         divider.addCell(cell);
         doc.add(divider);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BillResponseDto> getAllBills(int page, int size) {
+        return billRepository
+                .findAll(PageRequest.of(page, size))
+                .stream()
+                .map(this::mapToDto)
+                .toList();
     }
 }

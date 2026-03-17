@@ -26,16 +26,17 @@ public class MedicalRecordService {
     private final AppointmentRepository appointmentRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final PatientRepository patientRepository;
-    private final BillRepository billRepository;       // ← ADDED
-    private final BillService billService;             // ← ADDED
-    private final EmailService emailService;           // ← ADDED
+    private final BillRepository billRepository;
+    private final BillService billService;
+    private final EmailService emailService;
 
     private static final DateTimeFormatter DATE_FMT =
             DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a");
 
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE MEDICAL RECORD
-    // Auto-generates bill + marks appointment COMPLETED + sends email
+    // Doctor sets: diagnosis, notes, symptoms, treatmentPlan, testsRecommended
+    // Links to existing prescription via prescriptionId (optional)
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public MedicalRecordResponseDto createMedicalRecord(
@@ -54,18 +55,19 @@ public class MedicalRecordService {
                             + requestDto.getAppointmentId());
         }
 
-        // Build medical record
+        // Build medical record — all clinical info lives here
         MedicalRecord record = new MedicalRecord();
         record.setAppointment(appointment);
         record.setPatient(appointment.getPatient());
         record.setDoctor(appointment.getDoctor());
-//         record.patientName(record.getPatient().getName())   ;     // ← ADD
-
-//                record.doctorName(record.getDoctor().getName());
         record.setDiagnosis(requestDto.getDiagnosis());
         record.setNotes(requestDto.getNotes());
+        record.setSymptoms(requestDto.getSymptoms());
+        record.setTreatmentPlan(requestDto.getTreatmentPlan());
+        record.setTestsRecommended(requestDto.getTestsRecommended());
         record.setVisitDate(LocalDateTime.now());
 
+        // Link prescription if provided
         if (requestDto.getPrescriptionId() != null) {
             prescriptionRepository.findById(requestDto.getPrescriptionId())
                     .ifPresent(record::setPrescription);
@@ -75,27 +77,24 @@ public class MedicalRecordService {
         log.info("Medical record created for appointment: {}",
                 requestDto.getAppointmentId());
 
-        // ── STEP 1: Mark appointment as COMPLETED ─────────────────────────
+        // ── Mark appointment COMPLETED ────────────────────────────────────
         appointment.setStatus(AppointmentStatus.COMPLETED);
         appointmentRepository.save(appointment);
         log.info("Appointment {} marked as COMPLETED",
                 requestDto.getAppointmentId());
 
-        // ── STEP 2: Auto-generate bill ────────────────────────────────────
-        // Only generate if bill doesn't already exist
-        if (!billRepository.existsByAppointment_Id(
-                requestDto.getAppointmentId())) {
+        // ── Auto-generate bill if not already exists ──────────────────────
+        if (!billRepository.existsByAppointment_Id(requestDto.getAppointmentId())) {
 
-            double consultationFee =
-                    appointment.getDoctor().getConsultationFee();
-            double gstAmount  = Math.round(consultationFee * 0.18 * 100.0) / 100.0;
-            double totalAmount = Math.round((consultationFee + gstAmount) * 100.0) / 100.0;
+            double consultationFee = appointment.getDoctor().getConsultationFee();
+            double gstAmount       = Math.round(consultationFee * 0.18 * 100.0) / 100.0;
+            double totalAmount     = Math.round((consultationFee + gstAmount) * 100.0) / 100.0;
 
             billService.generateBill(requestDto.getAppointmentId());
             log.info("Bill auto-generated for appointment: {}",
                     requestDto.getAppointmentId());
 
-            // ── STEP 3: Send bill email to patient ─────────────────────────
+            // ── Send bill email to patient ────────────────────────────────
             emailService.sendBillGenerated(
                     appointment.getPatient().getUser().getUsername(),
                     appointment.getPatient().getName(),
@@ -124,6 +123,18 @@ public class MedicalRecordService {
                         "Patient not found: " + username));
 
         return medicalRecordRepository.findByPatient_Id(patient.getId())
+                .stream()
+                .map(this::mapToDto)
+                .toList();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET MEDICAL RECORDS FOR DOCTOR
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<MedicalRecordResponseDto> getMedicalRecordsForDoctor(Long doctorId) {
+        return medicalRecordRepository
+                .findByDoctor_Id(doctorId)
                 .stream()
                 .map(this::mapToDto)
                 .toList();
@@ -175,6 +186,7 @@ public class MedicalRecordService {
         java.awt.Color accent = new java.awt.Color(39, 174, 96);
         java.awt.Color altRow = new java.awt.Color(235, 250, 240);
 
+        // ── Hospital Header ────────────────────────────────────────────────
         Paragraph hospitalName = new Paragraph("City Care Hospital", titleFont);
         hospitalName.setAlignment(Element.ALIGN_CENTER);
         document.add(hospitalName);
@@ -188,6 +200,7 @@ public class MedicalRecordService {
         addDivider(document, accent);
         document.add(new Paragraph(" "));
 
+        // ── Title ──────────────────────────────────────────────────────────
         Paragraph title = new Paragraph("MEDICAL RECORD", headFont);
         title.setAlignment(Element.ALIGN_LEFT);
         document.add(title);
@@ -198,6 +211,7 @@ public class MedicalRecordService {
         document.add(recordNum);
         document.add(new Paragraph(" "));
 
+        // ── Patient / Doctor Info ──────────────────────────────────────────
         String departmentName = record.getDoctor().getDepartments().stream()
                 .findFirst()
                 .map(Department::getName)
@@ -228,6 +242,17 @@ public class MedicalRecordService {
         document.add(infoTable);
         document.add(new Paragraph(" "));
 
+        // ── Symptoms ──────────────────────────────────────────────────────
+        if (record.getSymptoms() != null && !record.getSymptoms().isBlank()) {
+            document.add(sectionHeader("Symptoms", accent));
+            document.add(new Paragraph(" "));
+            Paragraph symptomsPara = new Paragraph(record.getSymptoms(), normalFont);
+            symptomsPara.setIndentationLeft(15f);
+            document.add(symptomsPara);
+            document.add(new Paragraph(" "));
+        }
+
+        // ── Diagnosis ─────────────────────────────────────────────────────
         document.add(sectionHeader("Diagnosis", accent));
         document.add(new Paragraph(" "));
         Paragraph diagPara = new Paragraph(
@@ -237,6 +262,29 @@ public class MedicalRecordService {
         document.add(diagPara);
         document.add(new Paragraph(" "));
 
+        // ── Treatment Plan ────────────────────────────────────────────────
+        if (record.getTreatmentPlan() != null && !record.getTreatmentPlan().isBlank()) {
+            document.add(sectionHeader("Treatment Plan", accent));
+            document.add(new Paragraph(" "));
+            Paragraph treatPara = new Paragraph(record.getTreatmentPlan(), normalFont);
+            treatPara.setIndentationLeft(15f);
+            document.add(treatPara);
+            document.add(new Paragraph(" "));
+        }
+
+        // ── Tests Recommended ─────────────────────────────────────────────
+        if (record.getTestsRecommended() != null
+                && !record.getTestsRecommended().isBlank()) {
+            document.add(sectionHeader("Tests Recommended", accent));
+            document.add(new Paragraph(" "));
+            Paragraph testsPara = new Paragraph(
+                    record.getTestsRecommended(), normalFont);
+            testsPara.setIndentationLeft(15f);
+            document.add(testsPara);
+            document.add(new Paragraph(" "));
+        }
+
+        // ── Clinical Notes ────────────────────────────────────────────────
         document.add(sectionHeader("Clinical Notes", accent));
         document.add(new Paragraph(" "));
         Paragraph notesPara = new Paragraph(
@@ -246,6 +294,7 @@ public class MedicalRecordService {
         document.add(notesPara);
         document.add(new Paragraph(" "));
 
+        // ── Prescribed Medicines (from linked prescription) ────────────────
         if (record.getPrescription() != null) {
             Prescription rx = record.getPrescription();
 
@@ -297,6 +346,7 @@ public class MedicalRecordService {
 
         document.add(new Paragraph(" "));
 
+        // ── Signature ─────────────────────────────────────────────────────
         PdfPTable sigTable = new PdfPTable(new float[]{1, 1});
         sigTable.setWidthPercentage(100);
 
@@ -316,9 +366,11 @@ public class MedicalRecordService {
         document.add(sigTable);
         document.add(new Paragraph(" "));
 
+        // Footer
         Paragraph footer = new Paragraph(
                 "Confidential Medical Record — City Care Hospital. Issued on "
-                        + LocalDateTime.now().format(DATE_FMT), smallFont);
+                        + LocalDateTime.now().format(DATE_FMT),
+                smallFont);
         footer.setAlignment(Element.ALIGN_CENTER);
         document.add(footer);
 
@@ -335,7 +387,9 @@ public class MedicalRecordService {
                 .diagnosis(r.getDiagnosis())
                 .notes(r.getNotes())
                 .patientId(r.getPatient().getId())
+                .patientName(r.getPatient().getName())
                 .doctorId(r.getDoctor().getId())
+                .doctorName(r.getDoctor().getName())
                 .appointmentId(r.getAppointment().getId())
                 .prescriptionId(r.getPrescription() != null
                         ? r.getPrescription().getId() : null)

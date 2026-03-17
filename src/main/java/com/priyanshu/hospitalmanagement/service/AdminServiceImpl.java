@@ -1,6 +1,7 @@
 package com.priyanshu.hospitalmanagement.service;
 
 import com.priyanshu.hospitalmanagement.dto.*;
+import com.priyanshu.hospitalmanagement.entity.Patient;
 import com.priyanshu.hospitalmanagement.repository.*;
 import com.priyanshu.hospitalmanagement.entity.Department;
 import com.priyanshu.hospitalmanagement.entity.Doctor;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -34,11 +36,10 @@ public class AdminServiceImpl implements AdminService {
     // GET ALL PATIENTS
     @Override
     public List<PatientResponseDto> getAllPatients(Integer page, Integer size) {
-
         return patientRepository
                 .findAll(PageRequest.of(page, size))
                 .stream()
-                .map(patient -> modelMapper.map(patient, PatientResponseDto.class))
+                .map(this::mapPatientToDto) // ✅
                 .toList();
     }
 
@@ -49,7 +50,7 @@ public class AdminServiceImpl implements AdminService {
         return doctorRepository
                 .findAll(PageRequest.of(page, size))
                 .stream()
-                .map(doctor -> modelMapper.map(doctor, DoctorResponseDto.class))
+                .map(this::mapToDto)
                 .toList();
     }
     // CREATE DOCTOR
@@ -127,10 +128,12 @@ public class AdminServiceImpl implements AdminService {
 
         @Override
         public User createAdmin(CreateAdminRequestDto dto){
-
+            if (userRepository.existsByUsername(dto.getEmail())) {
+                throw new RuntimeException("Email already registered: " + dto.getEmail());
+            }
         User user = new User();
 
-        user.setUsername(dto.getUsername());
+        user.setUsername(dto.getEmail());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
 
         Set<RoleType> roles = new HashSet<>();
@@ -165,6 +168,30 @@ public class AdminServiceImpl implements AdminService {
                 totalDepartments
         );
     }
+    public AdminProfileDto getAdminProfile(String username) {
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
+        return mapToAdminDto(user);
+    }
+
+    public List<AdminProfileDto> getAllAdmins() {
+        return userRepository.findAll().stream()
+                .filter(u -> u.getRoles().contains(RoleType.ADMIN))
+                .map(this::mapToAdminDto)
+                .toList();
+    }
+
+    private AdminProfileDto mapToAdminDto(User u) {
+        return AdminProfileDto.builder()
+                .id(u.getId())
+                .email(u.getUsername())
+                .fullName(u.getFullName())
+                .phone(u.getPhone())
+                .roles(u.getRoles().stream()
+                        .map(RoleType::name)
+                        .collect(Collectors.toSet()))
+                .build();
+    }
     // ── PRIVATE HELPER ────────────────────────────────────────────
     private DoctorResponseDto mapToDto(Doctor doctor) {
         DoctorResponseDto dto = new DoctorResponseDto();
@@ -186,6 +213,29 @@ public class AdminServiceImpl implements AdminService {
                         .collect(java.util.stream.Collectors.toSet())
         );
 
+        return dto;
+    }
+    // ✅ Private helper add karo:
+    private PatientResponseDto mapPatientToDto(Patient patient) {
+        PatientResponseDto dto = new PatientResponseDto();
+        dto.setId(patient.getId());
+        dto.setName(patient.getName());
+        dto.setFatherName(patient.getFatherName());
+        dto.setBirthDate(patient.getBirthDate());
+        dto.setGender(patient.getGender());
+        dto.setAddress(patient.getAddress());
+        dto.setCity(patient.getCity());
+        dto.setState(patient.getState());
+        dto.setPincode(patient.getPincode());
+        dto.setEmergencyContactName(patient.getEmergencyContactName());
+        dto.setEmergencyContactPhone(patient.getEmergencyContactPhone());
+        dto.setBloodGroup(patient.getBloodGroup());
+        dto.setHeight(patient.getHeight());
+        dto.setWeight(patient.getWeight());
+        dto.setCreatedAt(patient.getCreatedAt());
+        // ✅ Email + Phone from User
+        dto.setEmail(patient.getUser().getUsername());
+        dto.setPhone(patient.getUser().getPhone());
         return dto;
     }
     }

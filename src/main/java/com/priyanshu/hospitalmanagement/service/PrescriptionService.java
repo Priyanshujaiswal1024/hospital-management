@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -29,12 +28,8 @@ public class PrescriptionService {
     private final MedicineRepository medicineRepository;
     private final PatientRepository patientRepository;
 
-
     // ─────────────────────────────────────────────────────────────────────────
-    // CREATE PRESCRIPTION
-    // FIX 1: @Transactional — if anything fails, all DB changes roll back
-    // FIX 2: Duplicate-prescription guard
-    // FIX 3: Single medicine fetch — used for BOTH mapping AND stock deduction
+    // CREATE PRESCRIPTION — doctor only sets medicines
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public PrescriptionResponseDto createPrescription(
@@ -42,21 +37,19 @@ public class PrescriptionService {
             CreatePrescriptionRequestDto requestDto) {
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new RuntimeException("Appointment not found: " + appointmentId));
+                .orElseThrow(() -> new RuntimeException(
+                        "Appointment not found: " + appointmentId));
 
-        // FIX 2: Prevent duplicate prescription for same appointment
-        boolean alreadyExists = prescriptionRepository.existsByAppointmentId(appointmentId);
-        if (alreadyExists) {
-            throw new RuntimeException("Prescription already exists for appointment: " + appointmentId);
+        // Prevent duplicate prescription for same appointment
+        if (prescriptionRepository.existsByAppointmentId(appointmentId)) {
+            throw new RuntimeException(
+                    "Prescription already exists for appointment: " + appointmentId);
         }
 
         Prescription prescription = new Prescription();
-        prescription.setDiagnosis(requestDto.getDiagnosis());
-        prescription.setNotes(requestDto.getNotes());
-//        prescription.setCreatedAt(LocalDateTime.now());
         prescription.setAppointment(appointment);
+        // NO diagnosis, NO notes — those belong to MedicalRecord
 
-        // FIX 3: Fetch each medicine ONCE and reuse for both mapping + stock deduction
         if (requestDto.getMedicines() != null && !requestDto.getMedicines().isEmpty()) {
 
             List<PrescriptionMedicine> prescriptionMedicines = new ArrayList<>();
@@ -67,23 +60,26 @@ public class PrescriptionService {
                         .orElseThrow(() -> new RuntimeException(
                                 "Medicine not found: " + item.getMedicineId()));
 
-                // Map DTO → PrescriptionMedicine entity
-                PrescriptionMedicine pm = new PrescriptionMedicine();
-                pm.setMedicine(medicine);
-                pm.setFrequency(item.getFrequency());
-                pm.setDurationDays(item.getDurationDays());
-                pm.setQuantity(item.getQuantity());
-                pm.setInstructions(item.getInstructions());
-                pm.setPrescription(prescription);  // back-reference for FK
-                prescriptionMedicines.add(pm);
-
-                // FIX 3: Deduct stock right here — medicine already in memory
+                // Check stock before deducting
                 int qty = item.getQuantity() != null ? item.getQuantity() : 1;
                 if (medicine.getStock() < qty) {
                     throw new RuntimeException(
                             "Insufficient stock for medicine: " + medicine.getName()
-                                    + ". Available: " + medicine.getStock() + ", Required: " + qty);
+                                    + ". Available: " + medicine.getStock()
+                                    + ", Required: " + qty);
                 }
+
+                // Map DTO → entity
+                PrescriptionMedicine pm = new PrescriptionMedicine();
+                pm.setMedicine(medicine);
+                pm.setFrequency(item.getFrequency());
+                pm.setDurationDays(item.getDurationDays());
+                pm.setQuantity(qty);
+                pm.setInstructions(item.getInstructions());
+                pm.setPrescription(prescription);
+                prescriptionMedicines.add(pm);
+
+                // Deduct stock
                 medicine.setStock(medicine.getStock() - qty);
                 medicineRepository.save(medicine);
             }
@@ -91,14 +87,14 @@ public class PrescriptionService {
             prescription.setMedicines(prescriptionMedicines);
         }
 
-        // Save prescription (cascades to PrescriptionMedicine via CascadeType.ALL)
+        // Save prescription (cascades to PrescriptionMedicine)
         Prescription saved = prescriptionRepository.save(prescription);
 
-        // Mark appointment completed AFTER prescription is saved successfully
+        // Mark appointment completed after prescription saved
         appointment.setStatus(AppointmentStatus.COMPLETED);
         appointmentRepository.save(appointment);
 
-        // Generate bill after everything else succeeds
+        // Generate bill
         billService.generateBill(appointmentId);
 
         return mapToResponseDto(saved);
@@ -109,15 +105,13 @@ public class PrescriptionService {
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] downloadPrescriptionPdf(Long id) throws Exception {
         Prescription prescription = prescriptionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Prescription not found: " + id));
+                .orElseThrow(() -> new RuntimeException(
+                        "Prescription not found: " + id));
         return generatePrescriptionPdf(prescription);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
     // GENERATE PDF
-    // FIX 4: Properly iterate List<PrescriptionMedicine> instead of toString()
-    // FIX 5: 5-column table with all medicine fields
-    // FIX 6: Null-safe medicines list check
     // ─────────────────────────────────────────────────────────────────────────
     public byte[] generatePrescriptionPdf(Prescription prescription) throws Exception {
 
@@ -127,29 +121,33 @@ public class PrescriptionService {
         document.open();
 
         // ── Fonts ──────────────────────────────────────────────────────────
-        Font titleFont    = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  20);
-        Font headerFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  14);
-        Font normalFont   = FontFactory.getFont(FontFactory.HELVETICA,       11);
-        Font smallFont    = FontFactory.getFont(FontFactory.HELVETICA,        9);
-        Font boldFont     = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  11);
-        Font tableHeader  = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  10);
+        Font titleFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 20);
+        Font headerFont  = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 14);
+        Font normalFont  = FontFactory.getFont(FontFactory.HELVETICA,      11);
+        Font smallFont   = FontFactory.getFont(FontFactory.HELVETICA,       9);
+        Font boldFont    = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
+        Font whiteFont   = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10,
+                new java.awt.Color(255, 255, 255));
+
+        java.awt.Color accent = new java.awt.Color(41, 128, 185);
 
         // ── Hospital Header ────────────────────────────────────────────────
         Paragraph hospitalName = new Paragraph("City Care Hospital", titleFont);
         hospitalName.setAlignment(Element.ALIGN_CENTER);
         document.add(hospitalName);
 
-        Paragraph hospitalAddress = new Paragraph("123 Health Street, Delhi | Ph: +91-11-XXXX-XXXX", normalFont);
+        Paragraph hospitalAddress = new Paragraph(
+                "123 Health Street, Delhi | Ph: +91-11-XXXX-XXXX", normalFont);
         hospitalAddress.setAlignment(Element.ALIGN_CENTER);
         document.add(hospitalAddress);
 
         document.add(new Paragraph(" "));
 
-        // Divider line
+        // Divider
         PdfPTable divider = new PdfPTable(1);
         divider.setWidthPercentage(100);
         PdfPCell divCell = new PdfPCell();
-        divCell.setBackgroundColor(new java.awt.Color(41, 128, 185));
+        divCell.setBackgroundColor(accent);
         divCell.setFixedHeight(3f);
         divCell.setBorder(Rectangle.NO_BORDER);
         divider.addCell(divCell);
@@ -157,45 +155,36 @@ public class PrescriptionService {
 
         document.add(new Paragraph(" "));
 
-        // ── Patient / Doctor Info ──────────────────────────────────────────
+        // ── Title ──────────────────────────────────────────────────────────
         Paragraph rxTitle = new Paragraph("PRESCRIPTION", headerFont);
         rxTitle.setAlignment(Element.ALIGN_LEFT);
         document.add(rxTitle);
 
         document.add(new Paragraph(" "));
 
+        // ── Patient / Doctor Info ──────────────────────────────────────────
         PdfPTable infoTable = new PdfPTable(new float[]{1, 1});
         infoTable.setWidthPercentage(100);
 
         addInfoCell(infoTable, "Patient Name",
-                prescription.getAppointment().getPatient().getName(), boldFont, normalFont);
+                prescription.getAppointment().getPatient().getName(),
+                boldFont, normalFont);
         addInfoCell(infoTable, "Doctor Name",
-                prescription.getAppointment().getDoctor().getName(), boldFont, normalFont);
-        String date = "N/A";
+                prescription.getAppointment().getDoctor().getName(),
+                boldFont, normalFont);
 
-        if (prescription.getCreatedAt() != null) {
-            date = prescription.getCreatedAt().toLocalDate().toString();
-        }
-
+        String date = prescription.getCreatedAt() != null
+                ? prescription.getCreatedAt().toLocalDate().toString()
+                : "N/A";
         addInfoCell(infoTable, "Date", date, boldFont, normalFont);
         addInfoCell(infoTable, "Appointment ID",
-                String.valueOf(prescription.getAppointment().getId()), boldFont, normalFont);
+                String.valueOf(prescription.getAppointment().getId()),
+                boldFont, normalFont);
 
         document.add(infoTable);
-
-        document.add(new Paragraph(" "));
-
-        // ── Diagnosis ─────────────────────────────────────────────────────
-        Paragraph diagLabel = new Paragraph("Diagnosis:", boldFont);
-        document.add(diagLabel);
-        Paragraph diagValue = new Paragraph(prescription.getDiagnosis(), normalFont);
-        diagValue.setIndentationLeft(15f);
-        document.add(diagValue);
-
         document.add(new Paragraph(" "));
 
         // ── Medicines Table ────────────────────────────────────────────────
-        // FIX 4 + 5: Properly iterate List<PrescriptionMedicine> with all fields
         Paragraph medsLabel = new Paragraph("Prescribed Medicines:", boldFont);
         document.add(medsLabel);
         document.add(new Paragraph(" "));
@@ -203,20 +192,14 @@ public class PrescriptionService {
         PdfPTable medTable = new PdfPTable(new float[]{2.5f, 1.5f, 1f, 0.8f, 2f});
         medTable.setWidthPercentage(100);
 
-        // Table header row
-        String[] headers = {"Medicine", "Frequency", "Duration", "Qty", "Instructions"};
-        for (String h : headers) {
-            PdfPCell cell = new PdfPCell(new Paragraph(h, tableHeader));
-            cell.setBackgroundColor(new java.awt.Color(41, 128, 185));
+        // Header row
+        for (String h : new String[]{"Medicine", "Frequency", "Duration", "Qty", "Instructions"}) {
+            PdfPCell cell = new PdfPCell(new Paragraph(h, whiteFont));
+            cell.setBackgroundColor(accent);
             cell.setPadding(6f);
-            // Use white font manually
-            Font whiteFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10,
-                    new java.awt.Color(255, 255, 255));
-            cell.setPhrase(new Paragraph(h, whiteFont));
             medTable.addCell(cell);
         }
 
-        // FIX 6: Null-safe check before iterating medicines
         List<PrescriptionMedicine> medicines = prescription.getMedicines();
         if (medicines != null && !medicines.isEmpty()) {
             boolean alternate = false;
@@ -235,25 +218,14 @@ public class PrescriptionService {
                         normalFont, rowColor);
             }
         } else {
-            PdfPCell emptyCell = new PdfPCell(new Paragraph("No medicines prescribed", smallFont));
+            PdfPCell emptyCell = new PdfPCell(
+                    new Paragraph("No medicines prescribed", smallFont));
             emptyCell.setColspan(5);
             emptyCell.setPadding(6f);
             medTable.addCell(emptyCell);
         }
 
         document.add(medTable);
-
-        document.add(new Paragraph(" "));
-
-        // ── Notes ─────────────────────────────────────────────────────────
-        if (prescription.getNotes() != null && !prescription.getNotes().isBlank()) {
-            document.add(new Paragraph("Notes:", boldFont));
-            Paragraph notesVal = new Paragraph(prescription.getNotes(), normalFont);
-            notesVal.setIndentationLeft(15f);
-            document.add(notesVal);
-            document.add(new Paragraph(" "));
-        }
-
         document.add(new Paragraph(" "));
         document.add(new Paragraph(" "));
 
@@ -263,17 +235,18 @@ public class PrescriptionService {
 
         PdfPCell leftSig = new PdfPCell();
         leftSig.setBorder(Rectangle.NO_BORDER);
-        leftSig.addElement(new Paragraph("Patient Signature: ____________________", normalFont));
+        leftSig.addElement(new Paragraph(
+                "Patient Signature: ____________________", normalFont));
         sigTable.addCell(leftSig);
 
         PdfPCell rightSig = new PdfPCell();
         rightSig.setBorder(Rectangle.NO_BORDER);
         rightSig.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        rightSig.addElement(new Paragraph("Doctor Signature: ____________________", normalFont));
+        rightSig.addElement(new Paragraph(
+                "Doctor Signature: ____________________", normalFont));
         sigTable.addCell(rightSig);
 
         document.add(sigTable);
-
         document.add(new Paragraph(" "));
 
         // Footer
@@ -289,20 +262,31 @@ public class PrescriptionService {
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET PRESCRIPTIONS FOR LOGGED-IN PATIENT
-    // FIX 7: Map List<PrescriptionMedicine> → List<PrescriptionMedicineResponseDto>
-    //         instead of passing raw entity into DTO builder
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
-    public List<PrescriptionResponseDto> getPrescriptionsForLoggedInPatient(String username) {
+    public List<PrescriptionResponseDto> getPrescriptionsForLoggedInPatient(
+            String username) {
 
         Patient patient = patientRepository
                 .findByUser_Username(username)
-                .orElseThrow(() -> new RuntimeException("Patient not found: " + username));
+                .orElseThrow(() -> new RuntimeException(
+                        "Patient not found: " + username));
 
-        List<Prescription> prescriptions =
-                prescriptionRepository.findByAppointment_Patient_Id(patient.getId());
+        return prescriptionRepository
+                .findByAppointment_Patient_Id(patient.getId())
+                .stream()
+                .map(this::mapToResponseDto)
+                .toList();
+    }
 
-        return prescriptions.stream()
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET PRESCRIPTIONS FOR DOCTOR
+    // ─────────────────────────────────────────────────────────────────────────
+    @Transactional(readOnly = true)
+    public List<PrescriptionResponseDto> getPrescriptionsForDoctor(Long doctorId) {
+        return prescriptionRepository
+                .findByAppointment_Doctor_Id(doctorId)
+                .stream()
                 .map(this::mapToResponseDto)
                 .toList();
     }
@@ -310,12 +294,6 @@ public class PrescriptionService {
     // ─────────────────────────────────────────────────────────────────────────
     // PRIVATE HELPERS
     // ─────────────────────────────────────────────────────────────────────────
-
-    /**
-     * FIX 7: Central mapping method so both createPrescription and
-     * getPrescriptionsForLoggedInPatient produce consistent DTOs.
-     * Properly maps List<PrescriptionMedicine> → List<PrescriptionMedicineResponseDto>
-     */
     private PrescriptionResponseDto mapToResponseDto(Prescription p) {
 
         List<PrescriptionMedicineResponseDto> medicineDtos = new ArrayList<>();
@@ -335,15 +313,15 @@ public class PrescriptionService {
 
         return PrescriptionResponseDto.builder()
                 .id(p.getId())
-                .diagnosis(p.getDiagnosis())
-                .notes(p.getNotes())
-                .medicines(medicineDtos)  // ✅ List<PrescriptionMedicineResponseDto> not entity
+                // NO diagnosis, NO notes
+                .medicines(medicineDtos)
                 .appointmentId(p.getAppointment().getId())
+                .patientName(p.getAppointment().getPatient().getName())
+                .doctorName(p.getAppointment().getDoctor().getName())
                 .createdAt(p.getCreatedAt())
                 .build();
     }
 
-    /** Helper: adds a label+value pair as a 2-cell row in info table */
     private void addInfoCell(PdfPTable table, String label, String value,
                              Font boldFont, Font normalFont) {
         PdfPCell cell = new PdfPCell();
@@ -354,10 +332,10 @@ public class PrescriptionService {
         table.addCell(cell);
     }
 
-    /** Helper: adds a single data cell to the medicines table */
     private void addMedCell(PdfPTable table, String value,
                             Font font, java.awt.Color bgColor) {
-        PdfPCell cell = new PdfPCell(new Paragraph(value != null ? value : "—", font));
+        PdfPCell cell = new PdfPCell(
+                new Paragraph(value != null ? value : "—", font));
         cell.setPadding(5f);
         cell.setBackgroundColor(bgColor);
         table.addCell(cell);

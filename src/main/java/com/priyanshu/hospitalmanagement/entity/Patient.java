@@ -38,10 +38,7 @@ public class Patient {
     @JoinColumn(name = "user_id")
     private User user;
 
-    // FIX 1: removed duplicate email and phone fields
-    // email → patient.getUser().getUsername()
-    // phone → patient.getUser().getPhone()
-    // having them here caused data inconsistency on update
+
 
     @Column(nullable = false, length = 40)
     private String name;

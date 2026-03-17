@@ -11,12 +11,13 @@ import java.util.List;
 public class PrescriptionResponseDto {
 
     private Long id;
-    private String diagnosis;
-    private String notes;
 
-    // FIX: Was List<PrescriptionMedicine> (raw entity) — now proper DTO list
     private List<PrescriptionMedicineResponseDto> medicines;
 
     private Long appointmentId;
+
+    private String patientName;
+    private String doctorName;
+
     private LocalDateTime createdAt;
 }

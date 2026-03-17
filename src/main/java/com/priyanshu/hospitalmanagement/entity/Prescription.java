@@ -8,32 +8,26 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "prescriptions")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+//@Builder
 public class Prescription {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String diagnosis;
+    @OneToOne
+    @JoinColumn(name = "appointment_id")       // ← ADDED
+    private Appointment appointment;
+
+    @OneToOne
+    @JoinColumn(name = "medical_record_id")
+    private MedicalRecord medicalRecord;
+
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL)
     private List<PrescriptionMedicine> medicines;
 
-    private String notes;
-
-    @Column(updatable = false)
     @CreationTimestamp
     private LocalDateTime createdAt;
-
-
-    @OneToOne
-    @JoinColumn(name = "appointment_id")
-    private Appointment appointment;
-
-
 }

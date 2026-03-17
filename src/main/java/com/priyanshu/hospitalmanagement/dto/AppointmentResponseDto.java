@@ -18,4 +18,6 @@ public class AppointmentResponseDto {
     private String doctorName;    // ← add this
     private String patientName;   // ← add this
     private String status;
+    private Long medicalRecordId;
+    private Long prescriptionId;    // ✅ null if not written
 }

@@ -319,7 +319,7 @@ public class WebSecurityConfig {
                         .hasRole(PATIENT.name())
 
                         .requestMatchers(HttpMethod.GET, "/bills/*/download")
-                        .hasRole(PATIENT.name())
+                        .hasAnyRole(PATIENT.name(),ADMIN.name())
 
                         .requestMatchers(HttpMethod.PATCH, "/bills/*/mark-paid")
                         .hasRole(ADMIN.name())

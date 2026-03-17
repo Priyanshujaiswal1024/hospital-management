@@ -19,4 +19,8 @@ public interface AdminService {
     void deleteDoctor(Long doctorId);
     User createAdmin(CreateAdminRequestDto dto);
     DashboardResponseDto getDashboard();
+
+    AdminProfileDto getAdminProfile(String username);
+
+    List<AdminProfileDto> getAllAdmins();
 }

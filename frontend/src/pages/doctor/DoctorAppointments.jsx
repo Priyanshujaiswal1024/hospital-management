@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
 export default function DoctorAppointments() {
+    const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
     const [loading,      setLoading]      = useState(true);
     const [filter,       setFilter]       = useState('ALL');
     const [reassigning,  setReassigning]  = useState(null);
+    const [completing,   setCompleting]   = useState(null);
     const [doctors,      setDoctors]      = useState([]);
     const [selectedDoc,  setSelectedDoc]  = useState('');
     const [error,        setError]        = useState('');
@@ -13,8 +16,7 @@ export default function DoctorAppointments() {
 
     useEffect(() => {
         fetchAppointments();
-        // load all doctors for reassign dropdown
-        api.get('/public/doctors', { params: { size:100 } })
+        api.get('/public/doctors', { params: { size: 100 } })
             .then(({ data }) => setDoctors(data.content || []))
             .catch(() => {});
     }, []);
@@ -31,6 +33,21 @@ export default function DoctorAppointments() {
         }
     }
 
+    async function handleMarkComplete(appointmentId) {
+        if (!window.confirm('Mark this appointment as completed?')) return;
+        setCompleting(appointmentId);
+        try {
+            await api.patch(`/doctors/appointments/${appointmentId}/complete`);
+            setSuccess('Appointment marked as completed!');
+            fetchAppointments();
+            setTimeout(() => setSuccess(''), 3000);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to complete appointment');
+        } finally {
+            setCompleting(null);
+        }
+    }
+
     async function handleReassign(appointmentId) {
         if (!selectedDoc) return;
         try {
@@ -39,7 +56,7 @@ export default function DoctorAppointments() {
                 null,
                 { params: { doctorId: selectedDoc } }
             );
-            setSuccess('Appointment reassigned successfully!');
+            setSuccess('Appointment reassigned!');
             setReassigning(null);
             setSelectedDoc('');
             fetchAppointments();
@@ -53,37 +70,163 @@ export default function DoctorAppointments() {
         ? appointments
         : appointments.filter(a => a.status === filter);
 
-    const statusColors = {
-        BOOKED:    { bg:'#fffbeb', color:'#92400e', label:'Booked' },
-        CONFIRMED: { bg:'#f0fdf4', color:'#166534', label:'Confirmed' },
-        COMPLETED: { bg:'#f3f4f6', color:'#374151', label:'Completed' },
-        CANCELLED: { bg:'#fef2f2', color:'#dc2626', label:'Cancelled' },
+    const statusConfig = {
+        BOOKED:    { bg:'#fef9c3', color:'#854d0e', dot:'#eab308', label:'Booked'    },
+        CONFIRMED: { bg:'#dcfce7', color:'#14532d', dot:'#22c55e', label:'Confirmed' },
+        COMPLETED: { bg:'#f1f5f9', color:'#374151', dot:'#94a3b8', label:'Completed' },
+        CANCELLED: { bg:'#fee2e2', color:'#7f1d1d', dot:'#ef4444', label:'Cancelled' },
     };
+
+    const avatarPalette = [
+        ['#EFF6FF','#185FA5'],['#FDF4FF','#7e22ce'],
+        ['#FFF7ED','#c2410c'],['#F0FDF4','#15803d'],
+        ['#FEF2F2','#dc2626'],['#F0F9FF','#0369a1'],
+    ];
 
     const s = {
-        th: { textAlign:'left', fontSize:'10px', fontWeight:700, color:'#9ca3af',
-            padding:'7px 10px', borderBottom:'1px solid #f3f4f6',
-            textTransform:'uppercase', letterSpacing:'.05em' },
-        td: { padding:'10px 10px', borderBottom:'1px solid #f9fafb',
-            fontSize:'12px', color:'#374151' },
+        th: {
+            textAlign:'left', fontSize:'10px', fontWeight:700, color:'#94a3b8',
+            padding:'10px 14px', borderBottom:'2px solid #f1f5f9',
+            textTransform:'uppercase', letterSpacing:'.06em', background:'#f8fafc',
+        },
+        td: {
+            padding:'12px 14px', borderBottom:'1px solid #f8fafc',
+            fontSize:'12px', color:'#374151', verticalAlign:'middle',
+        },
     };
 
-    return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    // ✅ Smart action buttons
+    function ActionButtons({ appt }) {
+        const isActive    = ['BOOKED','CONFIRMED'].includes(appt.status);
+        const isCancelled = appt.status === 'CANCELLED';
+        const hasPrescription  = !!appt.prescriptionId;
+        const hasMedicalRecord = !!appt.medicalRecordId;
 
+        if (isCancelled) {
+            return (
+                <span style={{ fontSize:'11px', color:'#cbd5e1', fontStyle:'italic' }}>
+                    No actions
+                </span>
+            );
+        }
+
+        return (
+            <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
+
+                {/* ✅ Mark Complete — only for BOOKED/CONFIRMED */}
+                {isActive && (
+                    <button
+                        onClick={() => handleMarkComplete(appt.id)}
+                        disabled={completing === appt.id}
+                        style={{
+                            padding:'5px 10px', borderRadius:'7px', border:'none',
+                            background:'#f0fdf4', color:'#15803d',
+                            fontSize:'11px', fontWeight:600,
+                            cursor: completing === appt.id ? 'not-allowed' : 'pointer',
+                            display:'flex', alignItems:'center', gap:'4px',
+                            opacity: completing === appt.id ? .6 : 1,
+                        }}>
+                        {completing === appt.id ? '⏳' : '✓'} Done
+                    </button>
+                )}
+
+                {/* ✅ Prescription — Write or View */}
+                <button
+                    onClick={() => navigate(`/doctor/appointments/${appt.id}/prescription`)}
+                    style={{
+                        padding:'5px 10px', borderRadius:'7px', border:'none',
+                        background: hasPrescription ? '#f0fdf4' : '#EFF6FF',
+                        color: hasPrescription ? '#15803d' : '#185FA5',
+                        fontSize:'11px', fontWeight:600, cursor:'pointer',
+                        display:'flex', alignItems:'center', gap:'4px',
+                        border: hasPrescription ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
+                    }}>
+                    💊 {hasPrescription ? 'View Rx' : 'Write Rx'}
+                </button>
+
+                {/* ✅ Medical Record — Add or View */}
+                <button
+                    onClick={() => navigate(`/doctor/appointments/${appt.id}/record`)}
+                    style={{
+                        padding:'5px 10px', borderRadius:'7px', border:'none',
+                        background: hasMedicalRecord ? '#f0fdf4' : '#fff7ed',
+                        color: hasMedicalRecord ? '#15803d' : '#c2410c',
+                        fontSize:'11px', fontWeight:600, cursor:'pointer',
+                        display:'flex', alignItems:'center', gap:'4px',
+                        border: hasMedicalRecord ? '1px solid #bbf7d0' : '1px solid #fed7aa',
+                    }}>
+                    📋 {hasMedicalRecord ? 'View Record' : 'Add Record'}
+                </button>
+
+                {/* ✅ Reassign — only active */}
+                {isActive && (
+                    <button
+                        onClick={() => {
+                            setReassigning(reassigning === appt.id ? null : appt.id);
+                            setSelectedDoc('');
+                        }}
+                        style={{
+                            padding:'5px 10px', borderRadius:'7px',
+                            border:'1px solid #e2e8f0', background:'#fff',
+                            color:'#374151', fontSize:'11px', fontWeight:600, cursor:'pointer',
+                        }}>
+                        🔄 Reassign
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div style={{
+            display:'flex', flexDirection:'column', height:'100%',
+            background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif",
+        }}>
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+                .appt-row:hover { background:#f8faff!important; }
+                .action-btn { transition: all .15s; }
+                .action-btn:hover { opacity:.85; transform:translateY(-1px); }
+            `}</style>
+
+            {/* Hero topbar */}
             <div style={{
-                background:'#fff', borderBottom:'1px solid #f0f0f0',
-                padding:'12px 20px', position:'sticky', top:0, zIndex:10,
+                background:'linear-gradient(135deg,#0f3460,#185FA5)',
+                padding:'18px 24px', display:'flex',
+                alignItems:'center', justifyContent:'space-between', flexShrink:0,
             }}>
-                <div style={{ fontSize:'15px', fontWeight:700, color:'#111' }}>
-                    All Appointments
+                <div>
+                    <div style={{
+                        fontSize:'18px', fontWeight:700, color:'#fff',
+                        fontFamily:"'Playfair Display',serif",
+                    }}>
+                        📅 Appointments
+                    </div>
+                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>
+                        {loading ? 'Loading...' : `${appointments.length} total appointments`}
+                    </div>
                 </div>
-                <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'1px' }}>
-                    Your complete schedule
+                {/* stat badges */}
+                <div style={{ display:'flex', gap:'8px' }}>
+                    {[
+                        { label:'Booked',    color:'#fbbf24', count: appointments.filter(a=>a.status==='BOOKED').length    },
+                        { label:'Confirmed', color:'#34d399', count: appointments.filter(a=>a.status==='CONFIRMED').length  },
+                        { label:'Completed', color:'#94a3b8', count: appointments.filter(a=>a.status==='COMPLETED').length  },
+                        { label:'Cancelled', color:'#f87171', count: appointments.filter(a=>a.status==='CANCELLED').length  },
+                    ].map(c => (
+                        <div key={c.label} style={{
+                            background:'rgba(255,255,255,.1)',
+                            border:'1px solid rgba(255,255,255,.15)',
+                            borderRadius:'10px', padding:'6px 14px', textAlign:'center',
+                        }}>
+                            <div style={{ fontSize:'16px', fontWeight:800, color:c.color }}>{c.count}</div>
+                            <div style={{ fontSize:'9px', color:'rgba(255,255,255,.5)', fontWeight:600 }}>{c.label}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            <div style={{ flex:1, overflowY:'auto', padding:'18px 20px' }}>
+            <div style={{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
 
                 {error && (
                     <div style={{
@@ -100,197 +243,223 @@ export default function DoctorAppointments() {
                     }}>✅ {success}</div>
                 )}
 
-                {/* filter tabs */}
-                <div style={{ display:'flex', gap:'6px', marginBottom:'12px', flexWrap:'wrap' }}>
+                {/* Filter tabs */}
+                <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
                     {['ALL','BOOKED','CONFIRMED','COMPLETED','CANCELLED'].map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
                             style={{
-                                padding:'5px 14px', borderRadius:'16px', fontSize:'11px',
-                                fontWeight:600, cursor:'pointer',
-                                border: filter === f ? 'none' : '1px solid #e5e7eb',
-                                background: filter === f ? '#185FA5' : '#fff',
-                                color: filter === f ? '#fff' : '#6b7280',
-                            }}
-                        >
-                            {f === 'ALL' ? `All (${appointments.length})` : f.charAt(0) + f.slice(1).toLowerCase()}
+                                padding:'6px 16px', borderRadius:'20px',
+                                fontSize:'11px', fontWeight:600, cursor:'pointer',
+                                border: filter===f ? 'none' : '1px solid #e2e8f0',
+                                background: filter===f ? '#185FA5' : '#fff',
+                                color: filter===f ? '#fff' : '#6b7280',
+                                boxShadow: filter===f ? '0 2px 8px rgba(24,95,165,.25)' : 'none',
+                                transition:'all .15s',
+                            }}>
+                            {f === 'ALL'
+                                ? `All (${appointments.length})`
+                                : `${f.charAt(0)+f.slice(1).toLowerCase()} (${appointments.filter(a=>a.status===f).length})`
+                            }
                         </button>
                     ))}
                 </div>
 
-                {/* table */}
+                {/* Table */}
                 <div style={{
-                    background:'#fff', border:'1px solid #f0f0f0',
-                    borderRadius:'10px', padding:'14px',
+                    background:'#fff', borderRadius:'16px',
+                    border:'1px solid #e8edf2',
+                    boxShadow:'0 1px 6px rgba(0,0,0,.04)', overflow:'hidden',
                 }}>
                     {loading ? (
-                        <div style={{ textAlign:'center', padding:'40px',
-                            color:'#9ca3af', fontSize:'13px' }}>
+                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8', fontSize:'13px' }}>
+                            <div style={{ fontSize:'28px', marginBottom:'10px' }}>⏳</div>
                             Loading appointments...
                         </div>
                     ) : filtered.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'40px',
-                            color:'#9ca3af', fontSize:'13px' }}>
+                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8', fontSize:'13px' }}>
+                            <div style={{ fontSize:'36px', marginBottom:'10px' }}>🗓️</div>
                             No appointments found.
                         </div>
                     ) : (
-                        <>
-                            <table style={{ width:'100%', borderCollapse:'collapse' }}>
-                                <thead>
-                                <tr>
-                                    {['Patient','Date & Time','Reason','Status','Action'].map(h => (
-                                        <th key={h} style={s.th}>{h}</th>
-                                    ))}
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {filtered.map(appt => {
-                                    const sc = statusColors[appt.status] || statusColors.BOOKED;
-                                    const initials = appt.patientName
-                                        ?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase();
-                                    return (
-                                        <>
-                                            <tr key={appt.id}>
-                                                <td style={s.td}>
-                                                    <div style={{ display:'flex', alignItems:'center', gap:'8px' }}>
-                                                        <div style={{
-                                                            width:'28px', height:'28px', borderRadius:'7px',
-                                                            background:'#EFF6FF', color:'#185FA5',
-                                                            fontSize:'10px', fontWeight:700,
-                                                            display:'flex', alignItems:'center',
-                                                            justifyContent:'center',
-                                                        }}>{initials}</div>
-                                                        <span style={{ fontWeight:500 }}>
-                                                                {appt.patientName}
-                                                            </span>
+                        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                            <thead>
+                            <tr>
+                                {['Patient','Date & Time','Reason','Status','Actions'].map(h => (
+                                    <th key={h} style={s.th}>{h}</th>
+                                ))}
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {filtered.map((appt, idx) => {
+                                const sc = statusConfig[appt.status] || statusConfig.BOOKED;
+                                const [abg, atc] = avatarPalette[idx % avatarPalette.length];
+                                const ini = appt.patientName?.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase() || '??';
+                                const dt = appt.appointmentTime ? new Date(appt.appointmentTime) : null;
+
+                                return (
+                                    <>
+                                        <tr
+                                            key={appt.id}
+                                            className="appt-row"
+                                            style={{ transition:'background .12s' }}
+                                        >
+                                            {/* Patient */}
+                                            <td style={s.td}>
+                                                <div style={{ display:'flex', alignItems:'center', gap:'9px' }}>
+                                                    <div style={{
+                                                        width:'34px', height:'34px', borderRadius:'10px',
+                                                        background:abg, color:atc, fontSize:'11px',
+                                                        fontWeight:700, display:'flex', alignItems:'center',
+                                                        justifyContent:'center', flexShrink:0,
+                                                    }}>
+                                                        {ini}
                                                     </div>
-                                                </td>
-                                                <td style={s.td}>
-                                                    {appt.appointmentTime
-                                                        ? new Date(appt.appointmentTime)
-                                                            .toLocaleString('en-IN', {
-                                                                day:'numeric', month:'short',
-                                                                hour:'2-digit', minute:'2-digit'
-                                                            })
-                                                        : '—'}
-                                                </td>
-                                                <td style={{ ...s.td, maxWidth:'140px',
-                                                    overflow:'hidden', textOverflow:'ellipsis',
-                                                    whiteSpace:'nowrap' }}>
-                                                    {appt.reason || '—'}
-                                                </td>
-                                                <td style={s.td}>
+                                                    <div>
+                                                        <div style={{ fontWeight:600, color:'#0f172a', fontSize:'12px' }}>
+                                                            {appt.patientName || '—'}
+                                                        </div>
+                                                        <div style={{ fontSize:'10px', color:'#94a3b8' }}>
+                                                            #{appt.id}
+                                                            {/* ✅ Rx & Record indicators */}
+                                                            {appt.prescriptionId && (
+                                                                <span style={{
+                                                                    marginLeft:'5px', background:'#EFF6FF',
+                                                                    color:'#185FA5', padding:'1px 5px',
+                                                                    borderRadius:'4px', fontSize:'9px', fontWeight:600,
+                                                                }}>💊 Rx</span>
+                                                            )}
+                                                            {appt.medicalRecordId && (
+                                                                <span style={{
+                                                                    marginLeft:'3px', background:'#f0fdf4',
+                                                                    color:'#15803d', padding:'1px 5px',
+                                                                    borderRadius:'4px', fontSize:'9px', fontWeight:600,
+                                                                }}>📋 MR</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </td>
+
+                                            {/* Date */}
+                                            <td style={s.td}>
+                                                {dt ? (
+                                                    <div>
+                                                        <div style={{ fontWeight:600, color:'#0f172a', fontSize:'12px' }}>
+                                                            {dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+                                                        </div>
+                                                        <div style={{ fontSize:'11px', color:'#185FA5', marginTop:'2px', fontWeight:500 }}>
+                                                            🕐 {dt.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true})}
+                                                        </div>
+                                                    </div>
+                                                ) : '—'}
+                                            </td>
+
+                                            {/* Reason */}
+                                            <td style={{
+                                                ...s.td, maxWidth:'160px',
+                                                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                                            }}>
+                                                {appt.reason
+                                                    ? <span>{appt.reason}</span>
+                                                    : <span style={{ color:'#cbd5e1', fontStyle:'italic' }}>No reason</span>
+                                                }
+                                            </td>
+
+                                            {/* Status */}
+                                            <td style={s.td}>
+                                                    <span style={{
+                                                        display:'inline-flex', alignItems:'center', gap:'5px',
+                                                        background:sc.bg, color:sc.color,
+                                                        padding:'4px 11px', borderRadius:'20px',
+                                                        fontSize:'10px', fontWeight:600,
+                                                    }}>
                                                         <span style={{
-                                                            background: sc.bg, color: sc.color,
-                                                            padding:'3px 9px', borderRadius:'8px',
-                                                            fontSize:'10px', fontWeight:600,
-                                                        }}>
-                                                            {sc.label}
-                                                        </span>
-                                                </td>
-                                                <td style={s.td}>
-                                                    <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
-                                                        {['BOOKED','CONFIRMED'].includes(appt.status) && (
-                                                            <>
-                                                                <button
-                                                                    onClick={() => navigate(`/doctor/appointments/${appt.id}/prescribe`)}
-                                                                    style={{
-                                                                        padding:'4px 9px', borderRadius:'6px', border:'none',
-                                                                        background:'#EFF6FF', color:'#185FA5',
-                                                                        fontSize:'11px', fontWeight:600, cursor:'pointer',
-                                                                    }}
-                                                                >
-                                                                    💊 Prescribe
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => navigate(`/doctor/appointments/${appt.id}/record`)}
-                                                                    style={{
-                                                                        padding:'4px 9px', borderRadius:'6px', border:'none',
-                                                                        background:'#f0fdf4', color:'#166534',
-                                                                        fontSize:'11px', fontWeight:600, cursor:'pointer',
-                                                                    }}
-                                                                >
-                                                                    📋 Record
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setReassigning(reassigning === appt.id ? null : appt.id);
-                                                                        setSelectedDoc('');
-                                                                    }}
-                                                                    style={{
-                                                                        padding:'4px 9px', borderRadius:'6px',
-                                                                        border:'1px solid #e5e7eb', background:'#fff',
-                                                                        color:'#374151', fontSize:'11px', fontWeight:600, cursor:'pointer',
-                                                                    }}
-                                                                >
-                                                                    Reassign
-                                                                </button>
-                                                            </>
-                                                        )}
+                                                            width:'5px', height:'5px', borderRadius:'50%',
+                                                            background:sc.dot, flexShrink:0,
+                                                        }}/>
+                                                        {sc.label}
+                                                    </span>
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td style={s.td}>
+                                                <ActionButtons appt={appt} />
+                                            </td>
+                                        </tr>
+
+                                        {/* Inline reassign panel */}
+                                        {reassigning === appt.id && (
+                                            <tr key={`r-${appt.id}`}>
+                                                <td colSpan={5} style={{
+                                                    padding:'12px 16px', background:'#f8fafc',
+                                                    borderBottom:'1px solid #f1f5f9',
+                                                }}>
+                                                    <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
+                                                        <select
+                                                            style={{
+                                                                flex:1, border:'1px solid #e2e8f0',
+                                                                borderRadius:'9px', padding:'8px 12px',
+                                                                fontSize:'12px', outline:'none', background:'#fff',
+                                                            }}
+                                                            value={selectedDoc}
+                                                            onChange={e => setSelectedDoc(e.target.value)}
+                                                        >
+                                                            <option value="">Select doctor...</option>
+                                                            {doctors.map(d => (
+                                                                <option key={d.id} value={d.id}>
+                                                                    {d.name} — {d.specialization}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <button
+                                                            onClick={() => handleReassign(appt.id)}
+                                                            disabled={!selectedDoc}
+                                                            style={{
+                                                                padding:'8px 16px', borderRadius:'9px',
+                                                                border:'none',
+                                                                background: selectedDoc ? '#185FA5' : '#9ca3af',
+                                                                color:'#fff', fontSize:'12px', fontWeight:600,
+                                                                cursor: selectedDoc ? 'pointer' : 'not-allowed',
+                                                            }}>
+                                                            Confirm
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setReassigning(null)}
+                                                            style={{
+                                                                padding:'8px 16px', borderRadius:'9px',
+                                                                border:'1px solid #e2e8f0', background:'#fff',
+                                                                color:'#374151', fontSize:'12px', fontWeight:600, cursor:'pointer',
+                                                            }}>
+                                                            Cancel
+                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>
-
-                                            {/* inline reassign panel */}
-                                            {reassigning === appt.id && (
-                                                <tr key={`r-${appt.id}`}>
-                                                    <td colSpan={5} style={{
-                                                        padding:'10px 14px',
-                                                        background:'#f9fafb',
-                                                        borderBottom:'1px solid #f3f4f6',
-                                                    }}>
-                                                        <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
-                                                            <select
-                                                                style={{
-                                                                    flex:1, border:'1px solid #e5e7eb',
-                                                                    borderRadius:'8px', padding:'7px 10px',
-                                                                    fontSize:'12px', outline:'none',
-                                                                }}
-                                                                value={selectedDoc}
-                                                                onChange={e => setSelectedDoc(e.target.value)}
-                                                            >
-                                                                <option value="">Select doctor...</option>
-                                                                {doctors.map(d => (
-                                                                    <option key={d.id} value={d.id}>
-                                                                        {d.name} — {d.specialization}
-                                                                    </option>
-                                                                ))}
-                                                            </select>
-                                                            <button
-                                                                onClick={() => handleReassign(appt.id)}
-                                                                disabled={!selectedDoc}
-                                                                style={{
-                                                                    padding:'7px 14px', borderRadius:'8px',
-                                                                    border:'none', background:'#185FA5',
-                                                                    color:'#fff', fontSize:'12px',
-                                                                    fontWeight:600, cursor:'pointer',
-                                                                }}
-                                                            >
-                                                                Confirm
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setReassigning(null)}
-                                                                style={{
-                                                                    padding:'7px 14px', borderRadius:'8px',
-                                                                    border:'1px solid #e5e7eb', background:'#fff',
-                                                                    color:'#374151', fontSize:'12px',
-                                                                    fontWeight:600, cursor:'pointer',
-                                                                }}
-                                                            >
-                                                                Cancel
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </>
-                                    );
-                                })}
-                                </tbody>
-                            </table>
-                        </>
+                                        )}
+                                    </>
+                                );
+                            })}
+                            </tbody>
+                        </table>
                     )}
+                </div>
+
+                {/* Bottom tip */}
+                <div style={{
+                    marginTop:'14px', padding:'12px 16px',
+                    background:'#eff6ff', borderRadius:'10px',
+                    fontSize:'11px', color:'#1e40af', lineHeight:1.7,
+                    display:'flex', alignItems:'flex-start', gap:'8px',
+                }}>
+                    <span style={{ fontSize:'16px', flexShrink:0 }}>💡</span>
+                    <div>
+                        <strong>Tip:</strong> Click <strong>Write Rx</strong> to add prescription,
+                        <strong> Add Record</strong> for medical record.
+                        Once added, buttons change to <strong>View Rx</strong> / <strong>View Record</strong>.
+                        Use <strong>✓ Done</strong> to mark appointment completed.
+                    </div>
                 </div>
             </div>
         </div>

@@ -1,15 +1,14 @@
 package com.priyanshu.hospitalmanagement.controller;
 
-import com.priyanshu.hospitalmanagement.dto.CreateAdminRequestDto;
-import com.priyanshu.hospitalmanagement.dto.CreateDoctorRequestDto;
-import com.priyanshu.hospitalmanagement.dto.DashboardResponseDto;
-import com.priyanshu.hospitalmanagement.dto.DoctorResponseDto;
+import com.priyanshu.hospitalmanagement.dto.*;
 import com.priyanshu.hospitalmanagement.entity.User;
 import com.priyanshu.hospitalmanagement.service.AdminService;
+import com.priyanshu.hospitalmanagement.service.AppointmentService;
 import com.priyanshu.hospitalmanagement.service.BillService;
 import com.priyanshu.hospitalmanagement.service.DepartmentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,8 +20,29 @@ public class AdminController {
 
     private final AdminService adminService;
     private final DepartmentService departmentService;
+    private final BillService billService;
+    private final AppointmentService appointmentService;
+    @GetMapping("/patients")
+    public ResponseEntity<List<PatientResponseDto>> getAllPatients(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(adminService.getAllPatients(page, size));
+    }
 
-    // GET ALL PATIENTS
+    @GetMapping("/appointments")
+    public ResponseEntity<List<AppointmentResponseDto>> getAllAppointments(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(appointmentService.getAllAppointments(page, size));
+    }
+
+    @GetMapping("/bills")
+    public ResponseEntity<List<BillResponseDto>> getAllBills(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(billService.getAllBills(page, size));
+    }
+
     @GetMapping("/doctors")
     public ResponseEntity<List<DoctorResponseDto>> getAllDoctors(
             @RequestParam(defaultValue = "0") int page,
@@ -30,12 +50,19 @@ public class AdminController {
 
         return ResponseEntity.ok(adminService.getAllDoctors(page, size));
     }
-    // GET ALL DOCTORS
-//    @GetMapping("/doctors")
-//    public ResponseEntity<List<DoctorResponseDto>> getAllDoctors() {
-//        return ResponseEntity.ok(adminService.getAllDoctors());
-//    }
+    // GET Admin Profile (logged-in admin)
+    @GetMapping("/profile")
+    public ResponseEntity<AdminProfileDto> getMyProfile() {
+        String username = SecurityContextHolder.getContext()
+                .getAuthentication().getName();
+        return ResponseEntity.ok(adminService.getAdminProfile(username));
+    }
 
+    // GET All Admins
+    @GetMapping("/all")
+    public ResponseEntity<List<AdminProfileDto>> getAllAdmins() {
+        return ResponseEntity.ok(adminService.getAllAdmins());
+    }
     // CREATE DOCTOR
     @PostMapping("/doctors")
     public ResponseEntity<DoctorResponseDto> createDoctor(

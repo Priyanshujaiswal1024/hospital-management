@@ -10,7 +10,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional; // ← Spring's, not Jakarta
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,7 +22,6 @@ public class InsuranceService {
 
     // ─────────────────────────────────────────────────────────────────────────
     // GET MY INSURANCE (logged-in patient)
-    // FIX: findByUser() removed — use findByUser_Username() instead
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional(readOnly = true)
     public InsuranceResponseDto getMyInsurance() {
@@ -32,7 +31,6 @@ public class InsuranceService {
                 .getAuthentication()
                 .getName();
 
-        // FIX: use findByUser_Username — findByUser() was removed
         Patient patient = patientRepository
                 .findByUser_Username(username)
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -48,17 +46,27 @@ public class InsuranceService {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // ASSIGN INSURANCE TO PATIENT (Admin use)
+    // ASSIGN OR UPDATE INSURANCE FOR PATIENT (Admin use)
+    // FIX: fetch existing insurance if present → UPDATE instead of INSERT
     // ─────────────────────────────────────────────────────────────────────────
     @Transactional
     public InsuranceResponseDto assignInsuranceToPatient(
-            Long patientId, Insurance insurance) {
+            Long patientId, Insurance request) {
 
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Patient not found: " + patientId));
 
+        // FIX: reuse existing row if one already exists for this patient
+        Insurance insurance = insuranceRepository
+                .findByPatient_Id(patientId)
+                .orElse(new Insurance());   // UPDATE if found, INSERT if not
+
         insurance.setPatient(patient);
+        insurance.setProvider(request.getProvider());
+        insurance.setPolicyNumber(request.getPolicyNumber());
+        insurance.setValidUntil(request.getValidUntil());
+
         patient.setInsurance(insurance);    // keep both sides in sync
 
         return mapToDto(insuranceRepository.save(insurance));
@@ -94,7 +102,7 @@ public class InsuranceService {
         dto.setPolicyNumber(i.getPolicyNumber());
         dto.setValidUntil(i.getValidUntil());
         dto.setCreatedAt(i.getCreatedAt());
-        dto.setPatientId(                       // ← now works, field exists in DTO
+        dto.setPatientId(
                 i.getPatient() != null ? i.getPatient().getId() : null);
         return dto;
     }

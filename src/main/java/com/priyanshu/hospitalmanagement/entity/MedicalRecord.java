@@ -1,27 +1,35 @@
 package com.priyanshu.hospitalmanagement.entity;
 
-
+import com.priyanshu.hospitalmanagement.entity.Appointment;
+import com.priyanshu.hospitalmanagement.entity.Doctor;
+import com.priyanshu.hospitalmanagement.entity.Patient;
+import com.priyanshu.hospitalmanagement.entity.Prescription;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.Getter;
+import lombok.Setter;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+
 @Entity
-@Table(name = "medical_records")
 @Getter
 @Setter
 public class MedicalRecord {
 
-    @Id
+   @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    // ✅ Doctor writes this
     private String diagnosis;
-
     private String notes;
+
+    private String symptoms;
+    private String testsRecommended;
+    private String treatmentPlan;
 
     private LocalDateTime visitDate;
 
+    // ✅ Auto-filled
     @ManyToOne
     private Patient patient;
 
@@ -29,9 +37,10 @@ public class MedicalRecord {
     private Doctor doctor;
 
     @OneToOne
-    private Prescription prescription;
-
-    @OneToOne
+    @JoinColumn(name = "appointment_id")
     private Appointment appointment;
 
+    // ✅ Link to prescription
+    @OneToOne(mappedBy = "medicalRecord", cascade = CascadeType.ALL)
+    private Prescription prescription;
 }

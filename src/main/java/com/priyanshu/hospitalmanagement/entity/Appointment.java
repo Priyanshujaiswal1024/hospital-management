@@ -36,6 +36,6 @@ public class Appointment {
     private Doctor doctor;
     @Enumerated(EnumType.STRING)
     private AppointmentStatus status;
-    @OneToOne(mappedBy = "appointment")
-    private Prescription prescription;
+    @OneToOne(mappedBy = "appointment", cascade = CascadeType.ALL)
+    private MedicalRecord medicalRecord;
 }

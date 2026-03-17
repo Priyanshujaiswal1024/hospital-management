@@ -4,6 +4,8 @@ import com.priyanshu.hospitalmanagement.dto.*;
 import com.priyanshu.hospitalmanagement.entity.UserPrincipal;
 import com.priyanshu.hospitalmanagement.service.AppointmentService;
 import com.priyanshu.hospitalmanagement.service.DoctorService;
+import com.priyanshu.hospitalmanagement.service.MedicalRecordService;
+import com.priyanshu.hospitalmanagement.service.PrescriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,6 +20,8 @@ public class DoctorController {
 
     private final AppointmentService appointmentService;
     private  final DoctorService doctorService;
+    private final MedicalRecordService medicalRecordService;
+    private final PrescriptionService prescriptionService;
 
     @GetMapping("/appointments")
     public ResponseEntity<List<AppointmentResponseDto>> getAllAppointmentsOfDoctor() {
@@ -66,6 +70,33 @@ public class DoctorController {
                         userPrincipal.getId()
                 )
         );
+    }
+    // ✅ Doctor manually mark appointment as completed
+    @PatchMapping("/appointments/{appointmentId}/complete")
+    public ResponseEntity<AppointmentResponseDto> markCompleted(
+            @PathVariable Long appointmentId) {
+        return ResponseEntity.ok(
+                appointmentService.markAppointmentCompleted(appointmentId));
+    }
+
+    // ✅ Get all prescriptions doctor ne di hain
+    @GetMapping("/prescriptions")
+    public ResponseEntity<List<PrescriptionResponseDto>> getMyPrescriptions() {
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext().getAuthentication().getPrincipal();
+        return ResponseEntity.ok(
+                prescriptionService.getPrescriptionsForDoctor(userPrincipal.getId()));
+    }
+
+    // ✅ Get all medical records doctor ne add kiye hain
+    @GetMapping("/medical-records")
+    public ResponseEntity<List<MedicalRecordResponseDto>> getMyMedicalRecords() {
+        UserPrincipal userPrincipal =
+                (UserPrincipal) SecurityContextHolder
+                        .getContext().getAuthentication().getPrincipal();
+        return ResponseEntity.ok(
+                medicalRecordService.getMedicalRecordsForDoctor(userPrincipal.getId()));
     }
     @PostMapping("/appointments/{appointmentId}/prescription")
     public void addPrescription(

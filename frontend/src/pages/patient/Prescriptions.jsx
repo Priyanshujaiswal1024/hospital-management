@@ -1,114 +1,219 @@
 import { useEffect, useState } from 'react';
-import { downloadPdf }         from '../../utils/downloadPdf';
-import api                     from '../../api/axios';
+import { downloadPdf } from '../../utils/downloadPdf';
+import api from '../../api/axios';
 
 export default function Prescriptions() {
+
     const [prescriptions, setPrescriptions] = useState([]);
-    const [loading, setLoading]             = useState(true);
-    const [downloading, setDownloading]     = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [downloading, setDownloading] = useState(null);
 
     useEffect(() => {
-        api.get('/patient/Prescription')
-            .then(({ data }) => setPrescriptions(data))
-            .catch(() => setPrescriptions([]))
-            .finally(() => setLoading(false));
+        fetchPrescriptions();
     }, []);
 
-    async function handleDownload(id) {
-        setDownloading(id);
-        await downloadPdf(
-            `/prescriptions/${id}/download`,
-            `prescription-${id}.pdf`
-        );
-        setDownloading(null);
+    async function fetchPrescriptions() {
+        try {
+            const res = await api.get('/patient/prescriptions');
+            console.log("DATA:", res.data);
+            setPrescriptions(res.data || []);
+        } catch (err) {
+            console.log("ERROR:", err);
+            setPrescriptions([]);
+        } finally {
+            setLoading(false);
+        }
     }
 
-    const s = {
-        th: { textAlign:'left', fontSize:'10px', fontWeight:700, color:'#9ca3af',
-            padding:'7px 10px', borderBottom:'1px solid #f3f4f6',
-            textTransform:'uppercase', letterSpacing:'.05em' },
-        td: { padding:'10px 10px', borderBottom:'1px solid #f9fafb',
-            fontSize:'12px', color:'#374151' },
+    async function handleDownload(id) {
+        try {
+            setDownloading(id);
+
+            await downloadPdf(
+                `/prescriptions/${id}/download`,
+                `prescription-${id}.pdf`
+            );
+
+        } catch (err) {
+            console.log("Download error:", err);
+        } finally {
+            setDownloading(null);
+        }
+    }
+
+    const styles = {
+        container: {
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+        },
+        header: {
+            background: '#fff',
+            borderBottom: '1px solid #eee',
+            padding: '12px 20px',
+        },
+        title: {
+            fontSize: '16px',
+            fontWeight: '700',
+        },
+        subtitle: {
+            fontSize: '12px',
+            color: '#888',
+        },
+        card: {
+            background: '#fff',
+            border: '1px solid #eee',
+            borderRadius: '10px',
+            padding: '15px',
+            margin: '20px',
+        },
+        table: {
+            width: '100%',
+            borderCollapse: 'collapse',
+        },
+        th: {
+            textAlign: 'left',
+            fontSize: '11px',
+            padding: '8px',
+            color: '#999',
+        },
+        td: {
+            padding: '10px',
+            fontSize: '13px',
+            verticalAlign: 'top',
+        },
+        button: {
+            padding: '5px 10px',
+            fontSize: '11px',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            cursor: 'pointer',
+        }
     };
 
     return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-            <div style={{
-                background:'#fff', borderBottom:'1px solid #f0f0f0', padding:'12px 20px',
-                position:'sticky', top:0, zIndex:10,
-            }}>
-                <div style={{ fontSize:'15px', fontWeight:700, color:'#111' }}>My Prescriptions</div>
-                <div style={{ fontSize:'11px', color:'#9ca3af', marginTop:'1px' }}>
+        <div style={styles.container}>
+
+            {/* HEADER */}
+            <div style={styles.header}>
+                <div style={styles.title}>My Prescriptions</div>
+                <div style={styles.subtitle}>
                     All prescriptions from your doctors
                 </div>
             </div>
 
-            <div style={{ flex:1, overflowY:'auto', padding:'18px 20px' }}>
-                <div style={{
-                    background:'#fff', border:'1px solid #f0f0f0',
-                    borderRadius:'10px', padding:'14px',
-                }}>
+            {/* CONTENT */}
+            <div style={{ flex: 1 }}>
+                <div style={styles.card}>
+
                     {loading ? (
-                        <div style={{ textAlign:'center', padding:'40px', color:'#9ca3af', fontSize:'13px' }}>
+                        <div style={{ textAlign: 'center', padding: '40px' }}>
                             Loading prescriptions...
                         </div>
+
                     ) : prescriptions.length === 0 ? (
-                        <div style={{ textAlign:'center', padding:'40px', color:'#9ca3af', fontSize:'13px' }}>
+                        <div style={{ textAlign: 'center', padding: '40px' }}>
                             No prescriptions yet.
                         </div>
+
                     ) : (
-                        <table style={{ width:'100%', borderCollapse:'collapse' }}>
+
+                        <table style={styles.table}>
                             <thead>
                             <tr>
-                                {['Medicine','Doctor','Dosage','Duration','Date','Status','Download'].map(h => (
-                                    <th key={h} style={s.th}>{h}</th>
-                                ))}
+                                <th style={styles.th}>Medicine</th>
+                                <th style={styles.th}>Doctor</th>
+                                <th style={styles.th}>Dosage</th>
+                                <th style={styles.th}>Duration</th>
+                                <th style={styles.th}>Date</th>
+                                <th style={styles.th}>Status</th>
+                                <th style={styles.th}>Download</th>
                             </tr>
                             </thead>
+
                             <tbody>
-                            {prescriptions.map(rx => (
+                            {prescriptions.map((rx) => (
+
                                 <tr key={rx.id}>
-                                    <td style={s.td}>
-                                        <strong>{rx.medicineName || rx.medicine || '—'}</strong>
+
+                                    {/* MEDICINES */}
+                                    <td style={styles.td}>
+                                        {rx.medicines?.length > 0
+                                            ? rx.medicines.map((m, i) => (
+                                                <div key={i}>
+                                                    <b>{m.medicineName}</b>
+                                                </div>
+                                            ))
+                                            : '—'}
                                     </td>
-                                    <td style={s.td}>{rx.doctorName || '—'}</td>
-                                    <td style={s.td}>{rx.dosage || '—'}</td>
-                                    <td style={s.td}>{rx.duration || '—'}</td>
-                                    <td style={s.td}>
+
+                                    {/* DOCTOR */}
+                                    <td style={styles.td}>
+                                        {rx.doctorName || '—'}
+                                    </td>
+
+                                    {/* DOSAGE */}
+                                    <td style={styles.td}>
+                                        {rx.medicines?.length > 0
+                                            ? rx.medicines.map((m, i) => (
+                                                <div key={i}>
+                                                    {m.frequency || '—'}
+                                                </div>
+                                            ))
+                                            : '—'}
+                                    </td>
+
+                                    {/* DURATION */}
+                                    <td style={styles.td}>
+                                        {rx.medicines?.length > 0
+                                            ? rx.medicines.map((m, i) => (
+                                                <div key={i}>
+                                                    {m.durationDays
+                                                        ? `${m.durationDays} days`
+                                                        : '—'}
+                                                </div>
+                                            ))
+                                            : '—'}
+                                    </td>
+
+                                    {/* DATE */}
+                                    <td style={styles.td}>
                                         {rx.createdAt
                                             ? new Date(rx.createdAt).toLocaleDateString('en-IN')
                                             : '—'}
                                     </td>
-                                    <td style={s.td}>
+
+                                    {/* STATUS */}
+                                    <td style={styles.td}>
                                             <span style={{
-                                                background: rx.active ? '#f0fdf4' : '#f3f4f6',
+                                                background: rx.active ? '#dcfce7' : '#f3f4f6',
                                                 color: rx.active ? '#166534' : '#374151',
-                                                padding:'3px 9px', borderRadius:'8px',
-                                                fontSize:'10px', fontWeight:600,
+                                                padding: '3px 8px',
+                                                borderRadius: '8px',
+                                                fontSize: '11px',
+                                                fontWeight: '600'
                                             }}>
                                                 {rx.active ? 'Active' : 'Done'}
                                             </span>
                                     </td>
-                                    <td style={s.td}>
+
+                                    {/* DOWNLOAD */}
+                                    <td style={styles.td}>
                                         <button
+                                            style={styles.button}
                                             onClick={() => handleDownload(rx.id)}
                                             disabled={downloading === rx.id}
-                                            style={{
-                                                padding:'4px 10px', borderRadius:'6px',
-                                                border:'1px solid #e5e7eb', background:'#fff',
-                                                color:'#374151', fontSize:'11px',
-                                                fontWeight:600, cursor:'pointer',
-                                                display:'flex', alignItems:'center', gap:'4px',
-                                            }}
                                         >
                                             {downloading === rx.id ? '...' : '⬇ PDF'}
                                         </button>
                                     </td>
+
                                 </tr>
                             ))}
                             </tbody>
                         </table>
                     )}
+
                 </div>
             </div>
         </div>
