@@ -71,13 +71,6 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- PostgreSQL — remove if not using -->
-		<!-- <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>runtime</scope>
-        </dependency> -->
-
 		<!-- Lombok -->
 		<dependency>
 			<groupId>org.projectlombok</groupId>
@@ -140,7 +133,7 @@
 							<artifactId>lombok</artifactId>
 						</path>
 					</annotationProcessorPaths>
-					<compilerArgs>--enable-preview</compilerArgs>
+<!--					<compilerArgs>&#45;&#45;enable-preview</compilerArgs>-->
 				</configuration>
 			</plugin>
 
