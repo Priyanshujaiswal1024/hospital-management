@@ -9,7 +9,6 @@ export default function DoctorPrescriptions() {
     const [search,         setSearch]        = useState('');
 
     useEffect(() => {
-        // FIX: correct endpoint
         api.get('/doctors/prescriptions')
             .then(r => setPrescriptions(r.data || []))
             .catch(() => setPrescriptions([]))
@@ -76,11 +75,10 @@ export default function DoctorPrescriptions() {
                         const dateStr = p.createdAt
                             ? new Date(p.createdAt).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})
                             : '—';
-                        // First 2 medicine names as preview
                         const medPreview = p.medicines?.slice(0,2).map(m => m.medicineName).join(', ') || '—';
 
                         async function downloadPdf(e) {
-                            e.stopPropagation();
+                            e.stopPropagation(); // prevent row click
                             try {
                                 const res = await api.get(`/prescriptions/${p.id}/download`, { responseType:'blob' });
                                 const url = URL.createObjectURL(new Blob([res.data],{type:'application/pdf'}));
@@ -91,8 +89,12 @@ export default function DoctorPrescriptions() {
                         }
 
                         return (
-                            <div key={p.id || idx} className="prx-row"
-                                 style={{ display:'grid', gridTemplateColumns:'2.2fr 1.5fr 1.1fr 1.3fr 1fr', padding:'13px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center' }}>
+                            <div
+                                key={p.id || idx}
+                                className="prx-row"
+                                onClick={() => navigate(`/doctor/prescriptions/${p.id}`)}  // ← FIXED: navigate on row click
+                                style={{ display:'grid', gridTemplateColumns:'2.2fr 1.5fr 1.1fr 1.3fr 1fr', padding:'13px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center' }}
+                            >
                                 <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
                                     <div style={{ width:'34px', height:'34px', borderRadius:'10px', background:bgColors[idx%bgColors.length], color:txColors[idx%txColors.length], fontSize:'11px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{ini}</div>
                                     <div>
@@ -100,7 +102,6 @@ export default function DoctorPrescriptions() {
                                         <div style={{ fontSize:'10px', color:'#94a3b8' }}>Rx #{p.id} · Appt #{p.appointmentId}</div>
                                     </div>
                                 </div>
-                                {/* FIX: show medicine names instead of diagnosis */}
                                 <div style={{ fontSize:'11px', color:'#374151', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight:'12px' }}>
                                     {medPreview}{medCount > 2 ? ` +${medCount-2} more` : ''}
                                 </div>

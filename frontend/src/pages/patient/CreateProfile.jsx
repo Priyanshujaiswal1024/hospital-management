@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
@@ -12,30 +12,43 @@ const bloodGroupLabels = {
 
 export default function CreateProfile() {
     const navigate = useNavigate();
-    const [step, setStep]       = useState(1); // 1 = personal, 2 = address, 3 = health
+    const [step, setStep]       = useState(1);
     const [loading, setLoading] = useState(false);
     const [error, setError]     = useState('');
 
     const [form, setForm] = useState({
-        // step 1 — personal
         name:        '',
         fatherName:  '',
         birthDate:   '',
         gender:      '',
         phone:       '',
         email:       '',
-        // step 2 — address
         address:     '',
         city:        '',
         state:       '',
         pincode:     '',
         emergencyContactName:  '',
         emergencyContactPhone: '',
-        // step 3 — health
         bloodGroup:  '',
         height:      '',
         weight:      '',
     });
+
+    // ── PRE-FILL from localStorage on mount ──
+    useEffect(() => {
+        try {
+            const raw = localStorage.getItem('userInfo');
+            if (raw) {
+                const info = JSON.parse(raw);
+                setForm(f => ({
+                    ...f,
+                    name:  info.fullName || '',
+                    phone: info.phone    || '',
+                    email: info.username || '',
+                }));
+            }
+        } catch {}
+    }, []);
 
     const set = key => e => setForm(f => ({ ...f, [key]: e.target.value }));
 
@@ -69,7 +82,6 @@ export default function CreateProfile() {
         }
     }
 
-    // step validation
     function nextStep() {
         if (step === 1) {
             if (!form.name || !form.birthDate || !form.gender || !form.phone) {
@@ -89,7 +101,15 @@ export default function CreateProfile() {
         width: '100%', border: '1px solid #e5e7eb', borderRadius: '10px',
         padding: '10px 14px', fontSize: '13px', outline: 'none',
         background: '#fafafa', color: '#111', fontFamily: 'Outfit, sans-serif',
-        transition: 'border .15s',
+        transition: 'border .15s', boxSizing: 'border-box',
+    };
+
+    const inpReadOnly = {
+        ...inp,
+        background: '#f0fdf4',
+        color: '#374151',
+        border: '1px solid #bbf7d0',
+        cursor: 'not-allowed',
     };
 
     const lbl = {
@@ -129,13 +149,9 @@ export default function CreateProfile() {
                         This helps us provide better care for you
                     </div>
 
-                    {/* step indicator */}
+                    {/* Step indicator */}
                     <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                        {[
-                            { n: 1, label: 'Personal' },
-                            { n: 2, label: 'Address' },
-                            { n: 3, label: 'Health' },
-                        ].map(s => (
+                        {[{ n:1, label:'Personal' }, { n:2, label:'Address' }, { n:3, label:'Health' }].map(s => (
                             <div key={s.n} style={{ flex: 1 }}>
                                 <div style={{
                                     height: '3px', borderRadius: '2px',
@@ -169,37 +185,52 @@ export default function CreateProfile() {
                     {/* ── STEP 1 — Personal ── */}
                     {step === 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div>
                                     <label style={lbl}>Full Name *</label>
-                                    <input style={inp} placeholder="Priyanshu Jaiswal"
-                                           value={form.name} onChange={set('name')}
-                                           onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                           onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                                    <input
+                                        style={inp}
+                                        placeholder="Priyanshu Jaiswal"
+                                        value={form.name}
+                                        onChange={set('name')}
+                                        onFocus={e => e.target.style.borderColor = '#0a4f3a'}
+                                        onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                                    />
                                 </div>
                                 <div>
                                     <label style={lbl}>Father's Name</label>
-                                    <input style={inp} placeholder="Ramesh Jaiswal"
-                                           value={form.fatherName} onChange={set('fatherName')}
-                                           onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                           onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                                    <input
+                                        style={inp}
+                                        placeholder="Ramesh Jaiswal"
+                                        value={form.fatherName}
+                                        onChange={set('fatherName')}
+                                        onFocus={e => e.target.style.borderColor = '#0a4f3a'}
+                                        onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                                    />
                                 </div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div>
                                     <label style={lbl}>Date of Birth *</label>
-                                    <input type="date" style={inp}
-                                           value={form.birthDate} onChange={set('birthDate')}
-                                           onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                           onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                                    <input
+                                        type="date" style={inp}
+                                        value={form.birthDate}
+                                        onChange={set('birthDate')}
+                                        onFocus={e => e.target.style.borderColor = '#0a4f3a'}
+                                        onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                                    />
                                 </div>
                                 <div>
                                     <label style={lbl}>Gender *</label>
-                                    <select style={inp}
-                                            value={form.gender} onChange={set('gender')}
-                                            onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                            onBlur={e => e.target.style.borderColor = '#e5e7eb'}>
+                                    <select
+                                        style={inp}
+                                        value={form.gender}
+                                        onChange={set('gender')}
+                                        onFocus={e => e.target.style.borderColor = '#0a4f3a'}
+                                        onBlur={e => e.target.style.borderColor = '#e5e7eb'}
+                                    >
                                         <option value="">Select gender</option>
                                         <option>Male</option>
                                         <option>Female</option>
@@ -211,17 +242,31 @@ export default function CreateProfile() {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 <div>
                                     <label style={lbl}>Phone *</label>
-                                    <input type="tel" style={inp} placeholder="+91 98765 43210"
-                                           value={form.phone} onChange={set('phone')}
-                                           onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                           onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                                    {/* read-only if pre-filled from signup, editable otherwise */}
+                                    <input
+                                        style={form.phone ? inpReadOnly : inp}
+                                        value={form.phone}
+                                        onChange={form.phone ? undefined : set('phone')}
+                                        readOnly={!!form.phone}
+                                        placeholder="+91 98765 43210"
+                                    />
                                 </div>
                                 <div>
-                                    <label style={lbl}>Email</label>
-                                    <input type="email" style={inp} placeholder="your@email.com"
-                                           value={form.email} onChange={set('email')}
-                                           onFocus={e => e.target.style.borderColor = '#0a4f3a'}
-                                           onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
+                                    <label style={lbl}>
+                                        Email
+                                        {form.email && (
+                                            <span style={{ marginLeft:'6px', background:'#dcfce7', color:'#15803d', padding:'1px 7px', borderRadius:'20px', fontSize:'9px', fontWeight:700, textTransform:'none' }}>
+                                                from account
+                                            </span>
+                                        )}
+                                    </label>
+                                    {/* always read-only — email = username from JWT */}
+                                    <input
+                                        style={inpReadOnly}
+                                        value={form.email}
+                                        readOnly
+                                        placeholder="your@email.com"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -263,10 +308,7 @@ export default function CreateProfile() {
                                        onBlur={e => e.target.style.borderColor = '#e5e7eb'} />
                             </div>
 
-                            <div style={{
-                                background: '#f9fafb', borderRadius: '10px',
-                                padding: '14px', border: '1px solid #f3f4f6',
-                            }}>
+                            <div style={{ background: '#f9fafb', borderRadius: '10px', padding: '14px', border: '1px solid #f3f4f6' }}>
                                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#374151', marginBottom: '12px' }}>
                                     🚨 Emergency Contact
                                 </div>
@@ -297,20 +339,15 @@ export default function CreateProfile() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                             <div>
                                 <label style={lbl}>Blood Group</label>
-                                <div style={{
-                                    display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px',
-                                }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '8px' }}>
                                     {bloodGroups.map(bg => (
                                         <button
-                                            key={bg}
-                                            type="button"
+                                            key={bg} type="button"
                                             onClick={() => setForm(f => ({ ...f, bloodGroup: bg }))}
                                             style={{
                                                 padding: '10px 6px', borderRadius: '9px', fontSize: '13px',
                                                 fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
-                                                border: form.bloodGroup === bg
-                                                    ? '2px solid #0a4f3a'
-                                                    : '1px solid #e5e7eb',
+                                                border: form.bloodGroup === bg ? '2px solid #0a4f3a' : '1px solid #e5e7eb',
                                                 background: form.bloodGroup === bg ? '#E1F5EE' : '#fff',
                                                 color: form.bloodGroup === bg ? '#0a4f3a' : '#374151',
                                             }}
@@ -338,7 +375,6 @@ export default function CreateProfile() {
                                 </div>
                             </div>
 
-                            {/* BMI calculator */}
                             {form.height && form.weight && (
                                 <div style={{
                                     background: '#E1F5EE', borderRadius: '10px',
@@ -346,9 +382,7 @@ export default function CreateProfile() {
                                     alignItems: 'center', justifyContent: 'space-between',
                                 }}>
                                     <div>
-                                        <div style={{ fontSize: '10px', color: '#065f46', fontWeight: 600 }}>
-                                            BMI (Body Mass Index)
-                                        </div>
+                                        <div style={{ fontSize: '10px', color: '#065f46', fontWeight: 600 }}>BMI (Body Mass Index)</div>
                                         <div style={{ fontSize: '20px', fontWeight: 700, color: '#0a4f3a' }}>
                                             {(form.weight / ((form.height / 100) ** 2)).toFixed(1)}
                                         </div>
@@ -378,8 +412,7 @@ export default function CreateProfile() {
                                 style={{
                                     flex: 1, padding: '11px', borderRadius: '10px',
                                     border: '1px solid #e5e7eb', background: '#fff',
-                                    fontSize: '13px', fontWeight: 600, color: '#374151',
-                                    cursor: 'pointer',
+                                    fontSize: '13px', fontWeight: 600, color: '#374151', cursor: 'pointer',
                                 }}
                             >
                                 ← Back
@@ -392,8 +425,7 @@ export default function CreateProfile() {
                                 style={{
                                     flex: 1, padding: '11px', borderRadius: '10px',
                                     border: 'none', background: '#0a4f3a',
-                                    fontSize: '13px', fontWeight: 600, color: '#fff',
-                                    cursor: 'pointer',
+                                    fontSize: '13px', fontWeight: 600, color: '#fff', cursor: 'pointer',
                                 }}
                             >
                                 Next →
@@ -407,17 +439,15 @@ export default function CreateProfile() {
                                     border: 'none', background: loading ? '#9ca3af' : '#0a4f3a',
                                     fontSize: '13px', fontWeight: 600, color: '#fff',
                                     cursor: loading ? 'not-allowed' : 'pointer',
-                                    display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', gap: '8px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                                 }}
                             >
                                 {loading ? (
                                     <>
-                                        <svg style={{ width: '16px', height: '16px', animation: 'spin 1s linear infinite' }}
+                                        <svg style={{ width:'16px', height:'16px', animation:'spin 1s linear infinite' }}
                                              xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle style={{ opacity: .25 }} cx="12" cy="12" r="10"
-                                                    stroke="currentColor" strokeWidth="4" />
-                                            <path style={{ opacity: .75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                                            <circle style={{ opacity:.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                            <path style={{ opacity:.75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                                         </svg>
                                         Saving...
                                     </>

@@ -76,7 +76,17 @@ public class MedicalRecordService {
         MedicalRecord saved = medicalRecordRepository.save(record);
         log.info("Medical record created for appointment: {}",
                 requestDto.getAppointmentId());
-
+        emailService.sendMedicalRecordCreated(
+                appointment.getPatient().getUser().getUsername(),  // toEmail
+                appointment.getPatient().getName(),                // patientName
+                appointment.getDoctor().getName(),                 // doctorName
+                record.getDiagnosis(),                             // diagnosis
+                record.getNotes(),                                 // notes
+                LocalDateTime.now().format(DATE_FMT),              // visitDate
+                saved.getId()                                      // recordId
+        );
+        log.info("Medical record email sent to: {}",
+                appointment.getPatient().getUser().getUsername());
         // ── Mark appointment COMPLETED ────────────────────────────────────
         appointment.setStatus(AppointmentStatus.COMPLETED);
         appointmentRepository.save(appointment);

@@ -62,4 +62,5 @@ public class Doctor {
     @ToString.Exclude
     @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL)
     private List<DoctorAvailability> availabilities = new ArrayList<>();
+    private boolean active = true;
 }

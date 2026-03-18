@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 
@@ -95,10 +95,9 @@ export default function DoctorAppointments() {
         },
     };
 
-    // ✅ Smart action buttons
     function ActionButtons({ appt }) {
-        const isActive    = ['BOOKED','CONFIRMED'].includes(appt.status);
-        const isCancelled = appt.status === 'CANCELLED';
+        const isActive         = ['BOOKED','CONFIRMED'].includes(appt.status);
+        const isCancelled      = appt.status === 'CANCELLED';
         const hasPrescription  = !!appt.prescriptionId;
         const hasMedicalRecord = !!appt.medicalRecordId;
 
@@ -113,7 +112,6 @@ export default function DoctorAppointments() {
         return (
             <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
 
-                {/* ✅ Mark Complete — only for BOOKED/CONFIRMED */}
                 {isActive && (
                     <button
                         onClick={() => handleMarkComplete(appt.id)}
@@ -130,35 +128,40 @@ export default function DoctorAppointments() {
                     </button>
                 )}
 
-                {/* ✅ Prescription — Write or View */}
                 <button
-                    onClick={() => navigate(`/doctor/appointments/${appt.id}/prescription`)}
+                    onClick={() => navigate(
+                        hasPrescription
+                            ? `/doctor/prescriptions/${appt.prescriptionId}`
+                            : `/doctor/appointments/${appt.id}/prescription`
+                    )}
                     style={{
-                        padding:'5px 10px', borderRadius:'7px', border:'none',
+                        padding:'5px 10px', borderRadius:'7px',
+                        border: hasPrescription ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
                         background: hasPrescription ? '#f0fdf4' : '#EFF6FF',
                         color: hasPrescription ? '#15803d' : '#185FA5',
                         fontSize:'11px', fontWeight:600, cursor:'pointer',
                         display:'flex', alignItems:'center', gap:'4px',
-                        border: hasPrescription ? '1px solid #bbf7d0' : '1px solid #bfdbfe',
                     }}>
                     💊 {hasPrescription ? 'View Rx' : 'Write Rx'}
                 </button>
 
-                {/* ✅ Medical Record — Add or View */}
                 <button
-                    onClick={() => navigate(`/doctor/appointments/${appt.id}/record`)}
+                    onClick={() => navigate(
+                        hasMedicalRecord
+                            ? `/doctor/medical-records/${appt.medicalRecordId}`
+                            : `/doctor/appointments/${appt.id}/record`
+                    )}
                     style={{
-                        padding:'5px 10px', borderRadius:'7px', border:'none',
+                        padding:'5px 10px', borderRadius:'7px',
+                        border: hasMedicalRecord ? '1px solid #bbf7d0' : '1px solid #fed7aa',
                         background: hasMedicalRecord ? '#f0fdf4' : '#fff7ed',
                         color: hasMedicalRecord ? '#15803d' : '#c2410c',
                         fontSize:'11px', fontWeight:600, cursor:'pointer',
                         display:'flex', alignItems:'center', gap:'4px',
-                        border: hasMedicalRecord ? '1px solid #bbf7d0' : '1px solid #fed7aa',
                     }}>
                     📋 {hasMedicalRecord ? 'View Record' : 'Add Record'}
                 </button>
 
-                {/* ✅ Reassign — only active */}
                 {isActive && (
                     <button
                         onClick={() => {
@@ -178,35 +181,20 @@ export default function DoctorAppointments() {
     }
 
     return (
-        <div style={{
-            display:'flex', flexDirection:'column', height:'100%',
-            background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif",
-        }}>
+        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
                 .appt-row:hover { background:#f8faff!important; }
-                .action-btn { transition: all .15s; }
-                .action-btn:hover { opacity:.85; transform:translateY(-1px); }
             `}</style>
 
-            {/* Hero topbar */}
-            <div style={{
-                background:'linear-gradient(135deg,#0f3460,#185FA5)',
-                padding:'18px 24px', display:'flex',
-                alignItems:'center', justifyContent:'space-between', flexShrink:0,
-            }}>
+            {/* Hero */}
+            <div style={{ background:'linear-gradient(135deg,#0f3460,#185FA5)', padding:'18px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
                 <div>
-                    <div style={{
-                        fontSize:'18px', fontWeight:700, color:'#fff',
-                        fontFamily:"'Playfair Display',serif",
-                    }}>
-                        📅 Appointments
-                    </div>
+                    <div style={{ fontSize:'18px', fontWeight:700, color:'#fff', fontFamily:"'Playfair Display',serif" }}>📅 Appointments</div>
                     <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>
                         {loading ? 'Loading...' : `${appointments.length} total appointments`}
                     </div>
                 </div>
-                {/* stat badges */}
                 <div style={{ display:'flex', gap:'8px' }}>
                     {[
                         { label:'Booked',    color:'#fbbf24', count: appointments.filter(a=>a.status==='BOOKED').length    },
@@ -214,11 +202,7 @@ export default function DoctorAppointments() {
                         { label:'Completed', color:'#94a3b8', count: appointments.filter(a=>a.status==='COMPLETED').length  },
                         { label:'Cancelled', color:'#f87171', count: appointments.filter(a=>a.status==='CANCELLED').length  },
                     ].map(c => (
-                        <div key={c.label} style={{
-                            background:'rgba(255,255,255,.1)',
-                            border:'1px solid rgba(255,255,255,.15)',
-                            borderRadius:'10px', padding:'6px 14px', textAlign:'center',
-                        }}>
+                        <div key={c.label} style={{ background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.15)', borderRadius:'10px', padding:'6px 14px', textAlign:'center' }}>
                             <div style={{ fontSize:'16px', fontWeight:800, color:c.color }}>{c.count}</div>
                             <div style={{ fontSize:'9px', color:'rgba(255,255,255,.5)', fontWeight:600 }}>{c.label}</div>
                         </div>
@@ -229,35 +213,27 @@ export default function DoctorAppointments() {
             <div style={{ flex:1, overflowY:'auto', padding:'18px 24px' }}>
 
                 {error && (
-                    <div style={{
-                        background:'#fef2f2', border:'1px solid #fecaca',
-                        color:'#dc2626', fontSize:'12px', borderRadius:'9px',
-                        padding:'10px 14px', marginBottom:'12px',
-                    }}>⚠️ {error}</div>
+                    <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'12px' }}>
+                        ⚠️ {error}
+                    </div>
                 )}
                 {success && (
-                    <div style={{
-                        background:'#f0fdf4', border:'1px solid #bbf7d0',
-                        color:'#166534', fontSize:'12px', borderRadius:'9px',
-                        padding:'10px 14px', marginBottom:'12px',
-                    }}>✅ {success}</div>
+                    <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', color:'#166534', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'12px' }}>
+                        ✅ {success}
+                    </div>
                 )}
 
                 {/* Filter tabs */}
                 <div style={{ display:'flex', gap:'6px', marginBottom:'14px', flexWrap:'wrap' }}>
                     {['ALL','BOOKED','CONFIRMED','COMPLETED','CANCELLED'].map(f => (
-                        <button
-                            key={f}
-                            onClick={() => setFilter(f)}
-                            style={{
-                                padding:'6px 16px', borderRadius:'20px',
-                                fontSize:'11px', fontWeight:600, cursor:'pointer',
-                                border: filter===f ? 'none' : '1px solid #e2e8f0',
-                                background: filter===f ? '#185FA5' : '#fff',
-                                color: filter===f ? '#fff' : '#6b7280',
-                                boxShadow: filter===f ? '0 2px 8px rgba(24,95,165,.25)' : 'none',
-                                transition:'all .15s',
-                            }}>
+                        <button key={f} onClick={() => setFilter(f)} style={{
+                            padding:'6px 16px', borderRadius:'20px', fontSize:'11px', fontWeight:600, cursor:'pointer',
+                            border: filter===f ? 'none' : '1px solid #e2e8f0',
+                            background: filter===f ? '#185FA5' : '#fff',
+                            color: filter===f ? '#fff' : '#6b7280',
+                            boxShadow: filter===f ? '0 2px 8px rgba(24,95,165,.25)' : 'none',
+                            transition:'all .15s',
+                        }}>
                             {f === 'ALL'
                                 ? `All (${appointments.length})`
                                 : `${f.charAt(0)+f.slice(1).toLowerCase()} (${appointments.filter(a=>a.status===f).length})`
@@ -267,11 +243,7 @@ export default function DoctorAppointments() {
                 </div>
 
                 {/* Table */}
-                <div style={{
-                    background:'#fff', borderRadius:'16px',
-                    border:'1px solid #e8edf2',
-                    boxShadow:'0 1px 6px rgba(0,0,0,.04)', overflow:'hidden',
-                }}>
+                <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', boxShadow:'0 1px 6px rgba(0,0,0,.04)', overflow:'hidden' }}>
                     {loading ? (
                         <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8', fontSize:'13px' }}>
                             <div style={{ fontSize:'28px', marginBottom:'10px' }}>⏳</div>
@@ -299,50 +271,29 @@ export default function DoctorAppointments() {
                                 const dt = appt.appointmentTime ? new Date(appt.appointmentTime) : null;
 
                                 return (
-                                    <>
-                                        <tr
-                                            key={appt.id}
-                                            className="appt-row"
-                                            style={{ transition:'background .12s' }}
-                                        >
-                                            {/* Patient */}
+                                    <React.Fragment key={appt.id}>
+                                        <tr className="appt-row" style={{ transition:'background .12s' }}>
+
                                             <td style={s.td}>
                                                 <div style={{ display:'flex', alignItems:'center', gap:'9px' }}>
-                                                    <div style={{
-                                                        width:'34px', height:'34px', borderRadius:'10px',
-                                                        background:abg, color:atc, fontSize:'11px',
-                                                        fontWeight:700, display:'flex', alignItems:'center',
-                                                        justifyContent:'center', flexShrink:0,
-                                                    }}>
+                                                    <div style={{ width:'34px', height:'34px', borderRadius:'10px', background:abg, color:atc, fontSize:'11px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                                                         {ini}
                                                     </div>
                                                     <div>
-                                                        <div style={{ fontWeight:600, color:'#0f172a', fontSize:'12px' }}>
-                                                            {appt.patientName || '—'}
-                                                        </div>
+                                                        <div style={{ fontWeight:600, color:'#0f172a', fontSize:'12px' }}>{appt.patientName || '—'}</div>
                                                         <div style={{ fontSize:'10px', color:'#94a3b8' }}>
                                                             #{appt.id}
-                                                            {/* ✅ Rx & Record indicators */}
                                                             {appt.prescriptionId && (
-                                                                <span style={{
-                                                                    marginLeft:'5px', background:'#EFF6FF',
-                                                                    color:'#185FA5', padding:'1px 5px',
-                                                                    borderRadius:'4px', fontSize:'9px', fontWeight:600,
-                                                                }}>💊 Rx</span>
+                                                                <span style={{ marginLeft:'5px', background:'#EFF6FF', color:'#185FA5', padding:'1px 5px', borderRadius:'4px', fontSize:'9px', fontWeight:600 }}>💊 Rx</span>
                                                             )}
                                                             {appt.medicalRecordId && (
-                                                                <span style={{
-                                                                    marginLeft:'3px', background:'#f0fdf4',
-                                                                    color:'#15803d', padding:'1px 5px',
-                                                                    borderRadius:'4px', fontSize:'9px', fontWeight:600,
-                                                                }}>📋 MR</span>
+                                                                <span style={{ marginLeft:'3px', background:'#f0fdf4', color:'#15803d', padding:'1px 5px', borderRadius:'4px', fontSize:'9px', fontWeight:600 }}>📋 MR</span>
                                                             )}
                                                         </div>
                                                     </div>
                                                 </div>
                                             </td>
 
-                                            {/* Date */}
                                             <td style={s.td}>
                                                 {dt ? (
                                                     <div>
@@ -356,89 +307,54 @@ export default function DoctorAppointments() {
                                                 ) : '—'}
                                             </td>
 
-                                            {/* Reason */}
-                                            <td style={{
-                                                ...s.td, maxWidth:'160px',
-                                                overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                                            }}>
+                                            <td style={{ ...s.td, maxWidth:'160px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                                                 {appt.reason
                                                     ? <span>{appt.reason}</span>
                                                     : <span style={{ color:'#cbd5e1', fontStyle:'italic' }}>No reason</span>
                                                 }
                                             </td>
 
-                                            {/* Status */}
                                             <td style={s.td}>
-                                                    <span style={{
-                                                        display:'inline-flex', alignItems:'center', gap:'5px',
-                                                        background:sc.bg, color:sc.color,
-                                                        padding:'4px 11px', borderRadius:'20px',
-                                                        fontSize:'10px', fontWeight:600,
-                                                    }}>
-                                                        <span style={{
-                                                            width:'5px', height:'5px', borderRadius:'50%',
-                                                            background:sc.dot, flexShrink:0,
-                                                        }}/>
+                                                    <span style={{ display:'inline-flex', alignItems:'center', gap:'5px', background:sc.bg, color:sc.color, padding:'4px 11px', borderRadius:'20px', fontSize:'10px', fontWeight:600 }}>
+                                                        <span style={{ width:'5px', height:'5px', borderRadius:'50%', background:sc.dot, flexShrink:0 }}/>
                                                         {sc.label}
                                                     </span>
                                             </td>
 
-                                            {/* Actions */}
                                             <td style={s.td}>
                                                 <ActionButtons appt={appt} />
                                             </td>
                                         </tr>
 
-                                        {/* Inline reassign panel */}
                                         {reassigning === appt.id && (
-                                            <tr key={`r-${appt.id}`}>
-                                                <td colSpan={5} style={{
-                                                    padding:'12px 16px', background:'#f8fafc',
-                                                    borderBottom:'1px solid #f1f5f9',
-                                                }}>
+                                            <tr>
+                                                <td colSpan={5} style={{ padding:'12px 16px', background:'#f8fafc', borderBottom:'1px solid #f1f5f9' }}>
                                                     <div style={{ display:'flex', gap:'8px', alignItems:'center' }}>
                                                         <select
-                                                            style={{
-                                                                flex:1, border:'1px solid #e2e8f0',
-                                                                borderRadius:'9px', padding:'8px 12px',
-                                                                fontSize:'12px', outline:'none', background:'#fff',
-                                                            }}
+                                                            style={{ flex:1, border:'1px solid #e2e8f0', borderRadius:'9px', padding:'8px 12px', fontSize:'12px', outline:'none', background:'#fff' }}
                                                             value={selectedDoc}
-                                                            onChange={e => setSelectedDoc(e.target.value)}
-                                                        >
+                                                            onChange={e => setSelectedDoc(e.target.value)}>
                                                             <option value="">Select doctor...</option>
                                                             {doctors.map(d => (
-                                                                <option key={d.id} value={d.id}>
-                                                                    {d.name} — {d.specialization}
-                                                                </option>
+                                                                <option key={d.id} value={d.id}>{d.name} — {d.specialization}</option>
                                                             ))}
                                                         </select>
                                                         <button
                                                             onClick={() => handleReassign(appt.id)}
                                                             disabled={!selectedDoc}
-                                                            style={{
-                                                                padding:'8px 16px', borderRadius:'9px',
-                                                                border:'none',
-                                                                background: selectedDoc ? '#185FA5' : '#9ca3af',
-                                                                color:'#fff', fontSize:'12px', fontWeight:600,
-                                                                cursor: selectedDoc ? 'pointer' : 'not-allowed',
-                                                            }}>
+                                                            style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background: selectedDoc ? '#185FA5' : '#9ca3af', color:'#fff', fontSize:'12px', fontWeight:600, cursor: selectedDoc ? 'pointer' : 'not-allowed' }}>
                                                             Confirm
                                                         </button>
                                                         <button
                                                             onClick={() => setReassigning(null)}
-                                                            style={{
-                                                                padding:'8px 16px', borderRadius:'9px',
-                                                                border:'1px solid #e2e8f0', background:'#fff',
-                                                                color:'#374151', fontSize:'12px', fontWeight:600, cursor:'pointer',
-                                                            }}>
+                                                            style={{ padding:'8px 16px', borderRadius:'9px', border:'1px solid #e2e8f0', background:'#fff', color:'#374151', fontSize:'12px', fontWeight:600, cursor:'pointer' }}>
                                                             Cancel
                                                         </button>
                                                     </div>
                                                 </td>
                                             </tr>
                                         )}
-                                    </>
+                                    </React.Fragment>
                                 );
                             })}
                             </tbody>
@@ -447,12 +363,7 @@ export default function DoctorAppointments() {
                 </div>
 
                 {/* Bottom tip */}
-                <div style={{
-                    marginTop:'14px', padding:'12px 16px',
-                    background:'#eff6ff', borderRadius:'10px',
-                    fontSize:'11px', color:'#1e40af', lineHeight:1.7,
-                    display:'flex', alignItems:'flex-start', gap:'8px',
-                }}>
+                <div style={{ marginTop:'14px', padding:'12px 16px', background:'#eff6ff', borderRadius:'10px', fontSize:'11px', color:'#1e40af', lineHeight:1.7, display:'flex', alignItems:'flex-start', gap:'8px' }}>
                     <span style={{ fontSize:'16px', flexShrink:0 }}>💡</span>
                     <div>
                         <strong>Tip:</strong> Click <strong>Write Rx</strong> to add prescription,

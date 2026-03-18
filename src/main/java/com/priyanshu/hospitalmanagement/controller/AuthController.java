@@ -7,7 +7,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -15,65 +14,63 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
-    private final PasswordEncoder passwordEncoder;
-    private  final TokenBlacklist tokenBlacklist;
+    private final AuthService    authService;
+    private final TokenBlacklist tokenBlacklist;
 
-    @PostMapping("/login")
-    public ResponseEntity<LoginResponseDto> login(@RequestBody LoginRequestDto loginRequestDto) {
-        return ResponseEntity.ok(authService.login(loginRequestDto));
-    }
-
+    // ── SIGNUP ──────────────────────────────────────────────────────────────
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody SignUpRequestDto signupRequestDto) {
-        return ResponseEntity.ok(authService.signup(signupRequestDto));
+    public ResponseEntity<String> signup(@RequestBody SignUpRequestDto dto) {
+        return ResponseEntity.ok(authService.signup(dto));
     }
+
+    // ── VERIFY OTP  →  returns JWT (auto-login after email verification) ✅ ──
     @PostMapping("/verify-otp")
-    public ResponseEntity<?> verifyOtp(@RequestBody VerifyOtpRequestDto dto) {
+    public ResponseEntity<LoginResponseDto> verifyOtp(@RequestBody VerifyOtpRequestDto dto) {
         return ResponseEntity.ok(authService.verifyOtp(dto));
     }
-    @PostMapping("/reset-password")
-    public ResponseEntity<String> resetPassword(
-            @RequestBody ResetPasswordRequestDto dto) {
 
-        return ResponseEntity.ok(authService.resetPassword(dto));
+    // ── RESEND OTP ──────────────────────────────────────────────────────────
+    @PostMapping("/resend-otp")
+    public ResponseEntity<String> resendOtp(@RequestParam String email) {
+        return ResponseEntity.ok(authService.resendOtp(email));
     }
+
+    // ── LOGIN ───────────────────────────────────────────────────────────────
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponseDto> login(@RequestBody LoginRequestDto dto) {
+        return ResponseEntity.ok(authService.login(dto));
+    }
+
+    // ── FORGOT PASSWORD ─────────────────────────────────────────────────────
     @PostMapping("/forgot-password")
     public ResponseEntity<String> forgotPassword(@RequestParam String email) {
-
         return ResponseEntity.ok(authService.forgotPassword(email));
     }
+
+    // ── RESET PASSWORD ──────────────────────────────────────────────────────
+    @PostMapping("/reset-password")
+    public ResponseEntity<String> resetPassword(@RequestBody ResetPasswordRequestDto dto) {
+        return ResponseEntity.ok(authService.resetPassword(dto));
+    }
+
+    // ── CHANGE PASSWORD (authenticated) ─────────────────────────────────────
     @PostMapping("/change-password")
     public ResponseEntity<String> changePassword(
             @RequestBody ChangePasswordRequestDto dto,
             Authentication authentication) {
-
-        String username = authentication.getName();
-
-        return ResponseEntity.ok(authService.changePassword(dto, username));
+        return ResponseEntity.ok(authService.changePassword(dto, authentication.getName()));
     }
-    @PostMapping("/resend-otp")
-    public ResponseEntity<String> resendOtp(@RequestParam String email) {
 
-        return ResponseEntity.ok(authService.resendOtp(email));
-    }
+    // ── LOGOUT (JWT blacklist) ───────────────────────────────────────────────
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(
-            HttpServletRequest request) {
-
+    public ResponseEntity<String> logout(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return ResponseEntity.badRequest().body("No token provided");
         }
 
-        String token = authHeader.substring(7);
-        tokenBlacklist.blacklist(token);
-
+        tokenBlacklist.blacklist(authHeader.substring(7));
         return ResponseEntity.ok("Logged out successfully");
     }
-//    @GetMapping("/encode")
-//    public String encode(@RequestParam String password) {
-//        return passwordEncoder.encode(password);
-//    }
 }

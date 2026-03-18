@@ -79,6 +79,11 @@ public class AppointmentService {
                 saved.getAppointmentTime(),
                 saved.getReason()
         );
+        emailService.sendDoctorNewAppointment(
+                doctor.getEmail(), doctor.getName(),
+                patient.getName(), appointment.getAppointmentTime(),
+                appointment.getReason(), appointment.getId()
+        );
 
         return mapToResponseDto(saved);
     }
@@ -95,11 +100,24 @@ public class AppointmentService {
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
-        Doctor doctor = doctorRepository.findById(doctorId)
+        Doctor oldDoctor = appointment.getDoctor(); // ← save old doctor BEFORE reassign
+
+        Doctor newDoctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new EntityNotFoundException("Doctor not found"));
 
-        appointment.setDoctor(doctor);
-        doctor.getAppointments().add(appointment);
+        appointment.setDoctor(newDoctor);
+        newDoctor.getAppointments().add(appointment);
+
+        // ← ADD THIS
+        emailService.sendDoctorReassigned(
+                newDoctor.getEmail(),
+                newDoctor.getName(),
+                appointment.getPatient().getName(),
+                appointment.getAppointmentTime(),
+                appointment.getReason(),
+                oldDoctor.getName(),        // previousDoctorName
+                appointment.getId()
+        );
 
         return mapToResponseDto(appointment);
     }

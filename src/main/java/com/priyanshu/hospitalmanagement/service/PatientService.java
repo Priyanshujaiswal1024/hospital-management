@@ -27,7 +27,7 @@ public class PatientService {
     private final PatientRepository patientRepository;
     private final UserRepository userRepository;
     private final InsuranceRepository insuranceRepository;
-
+    private final EmailService emailService;
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE PATIENT PROFILE
     // Called after signup + OTP verification
@@ -68,7 +68,12 @@ public class PatientService {
                 .weight(dto.getWeight())
                 .build();
 
-        return mapToDto(patientRepository.save(patient));
+        Patient saved = patientRepository.save(patient);
+        emailService.sendPatientWelcome(
+                user.getUsername(),   // toEmail
+                dto.getName()         // patientName
+        );
+        return mapToDto(saved);
     }
 
     // ─────────────────────────────────────────────────────────────────────────

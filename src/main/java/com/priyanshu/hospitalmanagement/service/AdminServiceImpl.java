@@ -50,6 +50,7 @@ public class AdminServiceImpl implements AdminService {
         return doctorRepository
                 .findAll(PageRequest.of(page, size))
                 .stream()
+//                .filter(Doctor::isActive)
                 .map(this::mapToDto)
                 .toList();
     }
@@ -121,8 +122,8 @@ public class AdminServiceImpl implements AdminService {
 
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
-
-        doctorRepository.delete(doctor);
+        doctor.setActive(false);
+        doctorRepository.save(doctor);
     }
 
 
@@ -135,8 +136,10 @@ public class AdminServiceImpl implements AdminService {
 
         user.setUsername(dto.getEmail());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
-
-        Set<RoleType> roles = new HashSet<>();
+            user.setFullName(dto.getFullName());   // ← ADDED
+            user.setPhone(dto.getPhone());         // ← ADDED
+            user.setEmailVerified(true);
+            Set<RoleType> roles = new HashSet<>();
         roles.add(RoleType.ADMIN);
 
         user.setRoles(roles);

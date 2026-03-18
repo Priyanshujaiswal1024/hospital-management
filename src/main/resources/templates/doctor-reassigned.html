@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Appointment Reassigned — City Care Hospital</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f4f8;padding:32px 16px;">
+    <tr><td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
+
+            <!-- HEADER -->
+            <tr>
+                <td style="background:linear-gradient(135deg,#0f3460,#185FA5);border-radius:16px 16px 0 0;padding:32px 36px;text-align:center;">
+                    <div style="font-size:36px;margin-bottom:8px;">🏥</div>
+                    <div style="font-size:22px;font-weight:700;color:#fff;">City Care Hospital</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;letter-spacing:.5px;text-transform:uppercase;">Doctor Portal Notification</div>
+                </td>
+            </tr>
+
+            <!-- ORANGE BANNER -->
+            <tr>
+                <td style="background:#fff7ed;border-left:4px solid #f97316;padding:14px 20px;">
+                    <span style="font-size:13px;font-weight:600;color:#c2410c;">🔄 An appointment has been reassigned to you</span>
+                </td>
+            </tr>
+
+            <!-- BODY -->
+            <tr>
+                <td style="background:#ffffff;padding:36px;">
+
+                    <p style="margin:0 0 20px;font-size:14px;color:#374151;">
+                        Dear <strong th:text="${doctorName}">Dr. Smith</strong>,
+                    </p>
+
+                    <p style="font-size:13px;color:#374151;line-height:1.8;margin:0 0 24px;">
+                        A patient appointment has been transferred to you by another doctor.
+                        Please review the details below and be prepared for the visit.
+                    </p>
+
+                    <!-- Appointment Card -->
+                    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:20px;margin-bottom:24px;">
+                        <div style="font-size:11px;font-weight:700;color:#c2410c;text-transform:uppercase;letter-spacing:.07em;margin-bottom:14px;">📋 Reassigned Appointment Details</div>
+                        <table width="100%" cellpadding="0" cellspacing="0">
+                            <tr>
+                                <td style="padding:8px 0;border-bottom:1px solid #fed7aa;">
+                                    <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Patient Name</span><br/>
+                                    <span style="font-size:14px;font-weight:600;color:#0f172a;" th:text="${patientName}">John Doe</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;border-bottom:1px solid #fed7aa;">
+                                    <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Appointment Date &amp; Time</span><br/>
+                                    <span style="font-size:14px;font-weight:600;color:#185FA5;" th:text="${appointmentTime}">19 Mar 2026, 02:00 PM</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;border-bottom:1px solid #fed7aa;">
+                                    <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Reason for Visit</span><br/>
+                                    <span style="font-size:13px;color:#374151;" th:text="${reason != null ? reason : 'Not specified'}">Fever</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;border-bottom:1px solid #fed7aa;">
+                                    <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Previously Assigned To</span><br/>
+                                    <span style="font-size:13px;color:#374151;" th:text="${previousDoctorName}">Dr. Patel</span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style="padding:8px 0;">
+                                    <span style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;">Appointment ID</span><br/>
+                                    <span style="font-size:13px;font-weight:600;color:#374151;" th:text="'#' + ${appointmentId}">#42</span>
+                                </td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <!-- Action required notice -->
+                    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:24px;">
+                        <span style="font-size:12px;color:#1e40af;font-weight:600;">⚡ Action Required</span>
+                        <p style="font-size:12px;color:#1e40af;margin:4px 0 0;line-height:1.7;">
+                            Please log into the portal to confirm this appointment and review any existing patient records.
+                        </p>
+                    </div>
+
+                    <!-- CTA -->
+                    <div style="text-align:center;margin-bottom:24px;">
+                        <a href="#" style="display:inline-block;background:linear-gradient(135deg,#f97316,#c2410c);color:#fff;text-decoration:none;padding:13px 32px;border-radius:10px;font-size:13px;font-weight:600;">
+                            View Appointment →
+                        </a>
+                    </div>
+
+                    <p style="font-size:12px;color:#94a3b8;margin:0;line-height:1.7;">
+                        If you have any concerns about this reassignment, please contact the admin.<br/>
+                        This is an automated notification from City Care Hospital portal.
+                    </p>
+                </td>
+            </tr>
+
+            <!-- FOOTER -->
+            <tr>
+                <td style="background:#f8fafc;border-radius:0 0 16px 16px;padding:20px 36px;text-align:center;border-top:1px solid #e2e8f0;">
+                    <div style="font-size:11px;color:#94a3b8;line-height:1.8;">
+                        © 2026 City Care Hospital · All rights reserved<br/>
+                        You received this because you are a registered doctor on our portal.
+                    </div>
+                </td>
+            </tr>
+
+        </table>
+    </td></tr>
+</table>
+</body>
+</html>

@@ -70,12 +70,12 @@
 # FROM patient
 # WHERE user_id = (SELECT id FROM app_user WHERE username = 'pk@gmail.com');
 #
-# select *
-# from patient;
-# select *
-# from app_user;
-# select *
-# from user_roles;
+select *
+from patient;
+select *
+from app_user;
+select *
+from user_roles;
 # select *
 # from insurance;
 # select *

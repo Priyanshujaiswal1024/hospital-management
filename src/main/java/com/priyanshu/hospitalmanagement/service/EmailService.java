@@ -173,5 +173,88 @@ public class EmailService {
             throw new RuntimeException("Failed to send email: " + subject, e);
         }
     }
+
+    // 8. DOCTOR — NEW APPOINTMENT NOTIFICATION
+// Triggered: when a patient books an appointment with this doctor
+// ─────────────────────────────────────────────────────────────────────────
+    public void sendDoctorNewAppointment(String toEmail, String doctorName,
+                                         String patientName, LocalDateTime appointmentTime,
+                                         String reason, Long appointmentId) {
+        Context context = new Context();
+        context.setVariable("doctorName", doctorName);
+        context.setVariable("patientName", patientName);
+        context.setVariable("appointmentTime", appointmentTime.format(DATE_FMT));
+        context.setVariable("reason", reason);
+        context.setVariable("appointmentId", appointmentId);
+        sendHtmlEmail(
+                toEmail,
+                "New Appointment Booked — City Care Hospital",
+                "doctor-new-appointment",
+                context
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+// 9. DOCTOR — APPOINTMENT REASSIGNED TO YOU
+// Triggered: when an appointment is reassigned to this doctor
+// ─────────────────────────────────────────────────────────────────────────
+    public void sendDoctorReassigned(String toEmail, String doctorName,
+                                     String patientName, LocalDateTime appointmentTime,
+                                     String reason, String previousDoctorName,
+                                     Long appointmentId) {
+        Context context = new Context();
+        context.setVariable("doctorName", doctorName);
+        context.setVariable("patientName", patientName);
+        context.setVariable("appointmentTime", appointmentTime.format(DATE_FMT));
+        context.setVariable("reason", reason);
+        context.setVariable("previousDoctorName", previousDoctorName);
+        context.setVariable("appointmentId", appointmentId);
+        sendHtmlEmail(
+                toEmail,
+                "Appointment Reassigned to You — City Care Hospital",
+                "doctor-reassigned",
+                context
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+// 10. PATIENT — MEDICAL RECORD CREATED
+// Triggered: when doctor creates a medical record for the patient
+// ─────────────────────────────────────────────────────────────────────────
+    public void sendMedicalRecordCreated(String toEmail, String patientName,
+                                         String doctorName, String diagnosis,
+                                         String notes, String visitDate,
+                                         Long recordId) {
+        Context context = new Context();
+        context.setVariable("patientName", patientName);
+        context.setVariable("doctorName", doctorName);
+        context.setVariable("diagnosis", diagnosis);
+        context.setVariable("notes", notes);
+        context.setVariable("visitDate", visitDate);
+        context.setVariable("recordId", recordId);
+        sendHtmlEmail(
+                toEmail,
+                "Your Medical Record is Ready — City Care Hospital",
+                "medical-record-created",
+                context
+        );
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+// 11. PATIENT WELCOME EMAIL
+// Triggered: when a patient completes profile creation (CreateProfile)
+// ─────────────────────────────────────────────────────────────────────────
+    public void sendPatientWelcome(String toEmail, String patientName) {
+        Context context = new Context();
+        context.setVariable("patientName", patientName);
+        context.setVariable("email", toEmail);
+        sendHtmlEmail(
+                toEmail,
+                "Welcome to City Care Hospital — Your Account is Ready",
+                "patient-welcome",
+                context
+        );
+    }
+
     // ← single closing brace — class ends here
 }

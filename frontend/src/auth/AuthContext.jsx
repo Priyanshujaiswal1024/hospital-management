@@ -13,12 +13,23 @@ export function AuthProvider({ children }) {
     function login(token) {
         localStorage.setItem('token', token);
         const decoded = jwtDecode(token);
-        console.log('✅ JWT Decoded:', decoded); // ← sirf ye line add ki
         setUser(decoded);
+
+        // Only set userInfo if not already set by signup
+        // (signup sets fullName + phone, login only has email)
+        const existing = localStorage.getItem('userInfo');
+        if (!existing) {
+            localStorage.setItem('userInfo', JSON.stringify({
+                username: decoded.sub,  // email
+                fullName: '',
+                phone:    '',
+            }));
+        }
     }
 
     function logout() {
         localStorage.removeItem('token');
+        localStorage.removeItem('userInfo');
         setUser(null);
     }
 
