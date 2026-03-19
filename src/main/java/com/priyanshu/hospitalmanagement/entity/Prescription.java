@@ -11,6 +11,7 @@ import java.util.List;
 @Getter
 @Setter
 //@Builder
+@Table(name = "prescriptions")
 public class Prescription {
 
     @Id

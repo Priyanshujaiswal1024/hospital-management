@@ -70,14 +70,14 @@
 # FROM patient
 # WHERE user_id = (SELECT id FROM app_user WHERE username = 'pk@gmail.com');
 #
-select *
-from patient;
-select *
-from app_user;
-select *
-from user_roles;
 # select *
-# from insurance;
+# from patient;
+# select *
+# from app_user;
+# select *
+# from user_roles;
+# # select *
+# # from insurance;
 # select *
 # from prescriptions;
 # select *
@@ -148,3 +148,13 @@ from doctor;
 # -- 👁 Drops
 # ('Refresh Tears', 'Eye', 'DROPS', '10ml', 'Allergan', 150.00, 90),
 # ('Moxifloxacin', 'Eye', 'DROPS', '5ml', 'Alcon', 180.00, 70);
+-- Drop the old wrong tables
+# DROP TABLE IF EXISTS medical_record;
+# DROP TABLE IF EXISTS medical_records;
+
+-- Drop prescription_medicine since it has wrong FK
+# DROP TABLE IF EXISTS prescription_medicine;
+
+-- Check which one has data
+
+SHOW TABLES;

@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 @Entity
 @Getter
 @Setter
+@Table(name = "medical_records")
 public class MedicalRecord {
 
    @Id

@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Table(name = "prescription_medicine")
 public class PrescriptionMedicine {
 
 
@@ -20,6 +21,7 @@ public class PrescriptionMedicine {
     private Long id;
 
     @ManyToOne
+    @JoinColumn(name = "prescription_id")  // must match FK constraint
     private Prescription prescription;
 
     @ManyToOne
