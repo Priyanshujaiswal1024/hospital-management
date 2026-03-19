@@ -1,9 +1,17 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+export default function ProtectedRoute({ allowedRole, children }) {
+    const { user, loading } = useAuth();
+    if (loading) return <div>Loading...</div>;
+    if (!user) return <Navigate to="/" replace />;
 
-export default function ProtectedRoute({ children, allowedRole }) {
-    const { user } = useAuth();
-    if (!user) return <Navigate to="/login" />;
-    if (allowedRole && user.role !== allowedRole) return <Navigate to="/login" />;
+    // ✅ Handle both JWT formats (normal login + Google OAuth)
+    const role = user.role                          // "PATIENT"
+        || user.role?.[0]?.replace('ROLE_', '')    // "ROLE_PATIENT" → "PATIENT"
+        || '';
+
+    if (allowedRole && role !== allowedRole)
+        return <Navigate to="/" replace />;
+
     return children;
 }

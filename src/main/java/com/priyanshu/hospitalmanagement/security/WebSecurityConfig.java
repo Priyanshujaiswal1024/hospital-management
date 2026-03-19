@@ -260,6 +260,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.web.HttpSessionOAuth2AuthorizationRequestRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -276,7 +277,8 @@ public class WebSecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final PasswordEncoder passwordEncoder;
     private final CorsConfigurationSource corsConfigurationSource; // ← ADD
-
+    private final OAuth2SuccessHandler  oAuth2SuccessHandler;
+    private final HttpCookieOAuth2AuthorizationRequestRepository cookieRepo;
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
@@ -290,6 +292,10 @@ public class WebSecurityConfig {
                         .requestMatchers(
                                 "/public/**",
                                 "/auth/**",
+                                "/login",            // ✅ ADD
+                                "/login/**",
+                                "/login/oauth2/**",        // ✅ OAuth2 callback
+                                "/oauth2/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
@@ -334,7 +340,18 @@ public class WebSecurityConfig {
                 )
 
                 .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                )     .oauth2Login(oauth2 -> oauth2
+                                .authorizationEndpoint(auth -> auth
+                                        .authorizationRequestRepository(cookieRepo)
+                                )
+
+                                .successHandler(oAuth2SuccessHandler)
+                                .failureHandler((request, response, exception) -> {
+                                      response.sendRedirect("http://localhost:5173/?error=" +
+                                            exception.getMessage());
+                                })
+                        // No custom login page — redirect from frontend directly
                 )
 
                 .authenticationProvider(authenticationProvider())

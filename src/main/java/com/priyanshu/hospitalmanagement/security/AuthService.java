@@ -223,4 +223,42 @@ public class AuthService {
 
         return "Password reset successfully";
     }
+    @Transactional
+    public LoginResponseDto handleOAuth2LoginRequest(
+            org.springframework.security.oauth2.core.user.OAuth2User oAuth2User,
+            String registrationId) {
+
+        // ── Extract email and name from Google's response ──
+        String email    = oAuth2User.getAttribute("email");
+        String fullName = oAuth2User.getAttribute("name");
+
+        if (email == null) {
+            throw new RuntimeException("Email not received from " + registrationId);
+        }
+
+        // ── Find existing user OR create new one ──
+        User user = userRepository.findByUsername(email).orElseGet(() -> {
+            User newUser = User.builder()
+                    .username(email)
+                    .fullName(fullName)
+                    .password(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
+                    .phone(null)             // Google doesn't provide phone
+                    .emailVerified(true)     // Google already verified email
+                    .otp(null)
+                    .otpExpiry(null)
+                    .roles(java.util.Set.of(RoleType.PATIENT))
+                    .build();
+            return userRepository.save(newUser);
+        });
+
+        // ── If existing user but not verified — mark verified ──
+        if (!user.isEmailVerified()) {
+            user.setEmailVerified(true);
+            userRepository.save(user);
+        }
+
+        // ── Generate JWT same as normal login ──
+        String token = jwtService.generateToken(user);
+        return new LoginResponseDto(token, user.getId());
+    }
 }

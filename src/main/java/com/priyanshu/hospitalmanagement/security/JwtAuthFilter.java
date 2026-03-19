@@ -87,9 +87,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
     }
 
-    // ✅
     @Override
-
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.equals("/auth/login")
@@ -97,7 +95,9 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 || path.equals("/auth/signup")
                 || path.equals("/auth/verify-otp")
                 || path.equals("/auth/resend-otp")
-                || path.startsWith("/public");
-        // ← /auth/logout is NOT here, so the filter WILL run on it
+                || path.startsWith("/public")
+                || path.startsWith("/oauth2")           // ✅ ADD
+                || path.startsWith("/login/oauth2")     // ✅ ADD
+                || path.startsWith("/login");            // ✅ ADD
     }
 }
