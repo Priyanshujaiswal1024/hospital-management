@@ -32,9 +32,10 @@ public class EmailService {
     public void sendOtp(String toEmail, String otp) {
         Context context = new Context();
         context.setVariable("otp", otp);
+
         sendHtmlEmail(
                 toEmail,
-                "Verify Your Email — City Care Hospital",
+                "Verify Your Email — Priyansh Hospital",
                 "otp-email",
                 context
         );
@@ -53,7 +54,7 @@ public class EmailService {
         context.setVariable("reason", reason);
         sendHtmlEmail(
                 toEmail,
-                "Appointment Confirmed — City Care Hospital",
+                "Appointment Confirmed — Priyansh Hospital",
                 "appointment-booked",
                 context
         );
@@ -69,7 +70,7 @@ public class EmailService {
         context.setVariable("appointmentTime", appointmentTime.format(DATE_FMT));
         sendHtmlEmail(
                 toEmail,
-                "Appointment Cancelled — City Care Hospital",
+                "Appointment Cancelled — Priyansh Hospital",
                 "appointment-cancelled",
                 context
         );
@@ -161,6 +162,7 @@ public class EmailService {
 
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setFrom("priyanshjais123@gmail.com");
             helper.setTo(toEmail);
             helper.setSubject(subject);
             helper.setText(html, true);
