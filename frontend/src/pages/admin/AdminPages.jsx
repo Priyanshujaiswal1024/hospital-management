@@ -1,669 +1,471 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
+import { useAuth } from '../../auth/AuthContext';
 
-// ✅ Blood group labels
-const bloodGroupLabels = {
-    A_POSITIVE:'A+', A_NEGATIVE:'A−', B_POSITIVE:'B+', B_NEGATIVE:'B−',
-    AB_POSITIVE:'AB+', AB_NEGATIVE:'AB−', O_POSITIVE:'O+', O_NEGATIVE:'O−',
-};
+// ── Validation ────────────────────────────────────────────────────
+function validateAdminForm(form) {
+    const errs = {};
 
-const inp = {
-    width:'100%', border:'1px solid #e2e8f0', borderRadius:'9px',
-    padding:'9px 12px', fontSize:'12px', outline:'none',
-    background:'#fafbfc', fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box',
-};
-const lbl = { fontSize:'11px', fontWeight:600, color:'#374151', marginBottom:'4px', display:'block' };
-const COLORS = [['#EFF6FF','#2563eb'],['#F5F3FF','#7c3aed'],['#FFF7ED','#c2410c'],['#F0FDF4','#15803d'],['#FEF2F2','#dc2626'],['#F0F9FF','#0369a1']];
-const HERO_STYLE = { background:'linear-gradient(135deg,#1e3a8a,#2563eb)', padding:'18px 28px', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 };
-const BASE_STYLES = `
-    @keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-    @keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
-    @import url('https://fonts.googleapis.com/css2?family=Lora:wght@700&family=DM+Sans:wght@400;500;600;700&display=swap');
-`;
+    // Email
+    if (!form.email.trim())
+        errs.email = 'Email is required';
+    else if (!/^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(form.email.trim()))
+        errs.email = 'Enter a valid email address';
 
-// ✅ Safe departments helper
-function safeDepts(departments) {
-    if (!departments) return '—';
-    const arr = [...departments].filter(
-        d => typeof d === 'string' && !d.includes('@') && !d.includes('.')
-    );
-    return arr.length > 0 ? arr.join(', ') : '—';
-}
+    // Password
+    if (!form.password)
+        errs.password = 'Password is required';
+    else if (form.password.length < 6)
+        errs.password = 'Password must be at least 6 characters';
+    else if (form.password.length > 128)
+        errs.password = 'Password is too long';
+    else if (/^\s+|\s+$/.test(form.password))
+        errs.password = 'Password cannot start or end with spaces';
 
-// ── AdminPatients ─────────────────────────────────────────────────────────
-export function AdminPatients() {
-    const [patients, setPatients] = useState([]);
-    const [loading,  setLoading]  = useState(true);
-    const [search,   setSearch]   = useState('');
-
-    useEffect(() => {
-        api.get('/admin/patients', { params:{ page:0, size:200 } })
-            .then(r => setPatients(r.data || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-    // ✅ Helper function add karo top mein:
-    function formatPhone(phone) {
-        if (!phone) return '—';
-        // Remove all non-digits
-        const digits = phone.replace(/\D/g, '');
-        // If starts with 91 and 12 digits — remove 91
-        if (digits.length === 12 && digits.startsWith('91')) {
-            return '+91 ' + digits.slice(2);
-        }
-        // If 10 digits — add +91
-        if (digits.length === 10) {
-            return '+91 ' + digits;
-        }
-        return phone; // return as-is if unknown format
+    // Full Name (optional but validate if provided)
+    if (form.fullName.trim()) {
+        if (form.fullName.trim().length < 2)
+            errs.fullName = 'Name must be at least 2 characters';
+        else if (form.fullName.trim().length > 60)
+            errs.fullName = 'Name must be under 60 characters';
+        else if (/\d/.test(form.fullName))
+            errs.fullName = 'Name cannot contain numbers';
+        else if (!/^[a-zA-Z\s.'\-]+$/.test(form.fullName.trim()))
+            errs.fullName = 'Name contains invalid characters';
     }
 
-    const filtered = patients.filter(p =>
-        !search ||
-        p.name?.toLowerCase().includes(search.toLowerCase()) ||
-        p.email?.toLowerCase().includes(search.toLowerCase())
-    );
+    // Phone — Indian 10-digit mobile (optional but validate if provided)
+    if (form.phone.trim()) {
+        const digits = form.phone.replace(/[\s\-+()]/g, '');
+        if (!/^\d+$/.test(digits))
+            errs.phone = 'Phone must contain only digits';
+        else if (digits.length !== 10)
+            errs.phone = 'Phone must be exactly 10 digits';
+        else if (!/^[6-9]/.test(digits))
+            errs.phone = 'Enter a valid Indian mobile number (starts with 6–9)';
+    }
 
-    return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
-            <style>{BASE_STYLES + `.prow:hover{background:#f8faff!important;}`}</style>
+    return errs;
+}
 
-            <div style={HERO_STYLE}>
-                <div>
-                    <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>Management</div>
-                    <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>👥 Patients</div>
-                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>
-                        {loading ? 'Loading...' : `${patients.length} patients registered`}
-                    </div>
-                </div>
-            </div>
-
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                       placeholder="🔍  Search patients..."
-                       style={{ ...inp, maxWidth:'400px', boxShadow:'0 1px 3px rgba(0,0,0,.04)', marginBottom:'16px' }}/>
-
-                <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', overflow:'hidden', animation:'fadeUp .3s ease' }}>
-
-                    {/* Header */}
-                    <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1.5fr 1.5fr 1fr', padding:'10px 20px', background:'#f8fafc', borderBottom:'2px solid #f1f5f9' }}>
-                        {['Patient','Email','Phone','Blood Group','Gender'].map(h => (
-                            <div key={h} style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.07em' }}>{h}</div>
-                        ))}
-                    </div>
-
-                    {loading ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>Loading patients...</div>
-                    ) : filtered.length === 0 ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>
-                            <div style={{ fontSize:'40px', marginBottom:'10px' }}>👥</div>
-                            {search ? `No results for "${search}"` : 'No patients yet'}
-                        </div>
-                    ) : filtered.map((p, idx) => {
-                        const [bg, tc] = COLORS[idx % COLORS.length];
-                        const ini = p.name?.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() || '??';
-                        return (
-                            <div key={p.id} className="prow" style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1.5fr 1.5fr 1fr', padding:'12px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center', transition:'background .12s' }}>
-
-                                {/* Patient */}
-                                <div style={{ display:'flex', alignItems:'center', gap:'10px' }}>
-                                    <div style={{ width:'34px', height:'34px', borderRadius:'10px', background:bg, color:tc, fontSize:'11px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{ini}</div>
-                                    <div>
-                                        <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{p.name || '—'}</div>
-                                        <div style={{ fontSize:'10px', color:'#94a3b8' }}>ID #{p.id}</div>
-                                    </div>
-                                </div>
-
-                                {/* ✅ Email */}
-                                <div style={{ fontSize:'12px', color:'#475569' }}>
-                                    {p.email || '—'}
-                                </div>
-
-                                {/* Phone */}
-                                <div style={{ fontSize:'12px', color:'#475569' }}>
-                                    {formatPhone(p.phone) || p.phoneNumber || '—'}
-                                </div>
-
-                                {/* ✅ Blood Group — human readable */}
-                                <span style={{ background:'#fef2f2', color:'#dc2626', padding:'3px 9px', borderRadius:'20px', fontSize:'11px', fontWeight:700, width:'fit-content' }}>
-                                    🩸 {bloodGroupLabels[p.bloodGroup] || p.bloodGroup || '—'}
-                                </span>
-
-                                {/* Gender */}
-                                <span style={{ background:'#f0f9ff', color:'#0369a1', padding:'3px 9px', borderRadius:'20px', fontSize:'11px', fontWeight:600, width:'fit-content' }}>
-                                    {p.gender || '—'}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
+// ── Eye Icon ──────────────────────────────────────────────────────
+function EyeIcon({ open }) {
+    return open ? (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+    ) : (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+            <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
     );
 }
 
-// ── AdminAppointments ─────────────────────────────────────────────────────
-export function AdminAppointments() {
-    const [appts,   setAppts]   = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [filter,  setFilter]  = useState('ALL');
-    const [search,  setSearch]  = useState('');
-
-    useEffect(() => {
-        api.get('/admin/appointments', { params:{ page:0, size:200 } })
-            .then(r => setAppts(r.data?.content || r.data || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-
-    const SC = {
-        BOOKED:    { bg:'#fef9c3', color:'#854d0e', dot:'#eab308' },
-        CONFIRMED: { bg:'#dcfce7', color:'#14532d', dot:'#22c55e' },
-        COMPLETED: { bg:'#f1f5f9', color:'#374151', dot:'#94a3b8' },
-        CANCELLED: { bg:'#fee2e2', color:'#7f1d1d', dot:'#ef4444' },
-    };
-
-    const filtered = appts.filter(a => {
-        const mF = filter === 'ALL' || a.status === filter;
-        const mS = !search ||
-            a.patientName?.toLowerCase().includes(search.toLowerCase()) ||
-            a.doctorName?.toLowerCase().includes(search.toLowerCase());
-        return mF && mS;
-    });
-
-    return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
-            <style>{BASE_STYLES + `.arow:hover{background:#f8faff!important;}`}</style>
-
-            <div style={{ ...HERO_STYLE, justifyContent:'flex-start' }}>
-                <div>
-                    <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>Management</div>
-                    <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>📅 All Appointments</div>
-                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>{appts.length} total appointments</div>
-                </div>
-            </div>
-
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
-                <div style={{ display:'flex', gap:'10px', marginBottom:'14px', flexWrap:'wrap' }}>
-                    <input value={search} onChange={e => setSearch(e.target.value)}
-                           placeholder="🔍  Search..."
-                           style={{ ...inp, maxWidth:'280px', boxShadow:'0 1px 3px rgba(0,0,0,.04)' }}/>
-                    {['ALL','BOOKED','CONFIRMED','COMPLETED','CANCELLED'].map(f => (
-                        <button key={f} onClick={() => setFilter(f)} style={{
-                            padding:'6px 16px', borderRadius:'20px', fontSize:'11px',
-                            fontWeight:600, cursor:'pointer',
-                            border: filter===f ? 'none' : '1px solid #e2e8f0',
-                            background: filter===f ? '#2563eb' : '#fff',
-                            color: filter===f ? '#fff' : '#6b7280',
-                        }}>
-                            {f === 'ALL' ? `All (${appts.length})` : f.charAt(0)+f.slice(1).toLowerCase()}
-                        </button>
-                    ))}
-                </div>
-
-                <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', overflow:'hidden', animation:'fadeUp .3s ease' }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1.5fr 1.5fr 1fr', padding:'10px 20px', background:'#f8fafc', borderBottom:'2px solid #f1f5f9' }}>
-                        {['Patient','Doctor','Date & Time','Reason','Status'].map(h => (
-                            <div key={h} style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.07em' }}>{h}</div>
-                        ))}
-                    </div>
-
-                    {loading ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>Loading...</div>
-                    ) : filtered.length === 0 ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>No appointments found.</div>
-                    ) : filtered.map(a => {
-                        const sc = SC[a.status] || SC.BOOKED;
-                        const dt = a.appointmentTime ? new Date(a.appointmentTime) : null;
-                        return (
-                            <div key={a.id} className="arow" style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1.5fr 1.5fr 1fr', padding:'12px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center', transition:'background .12s' }}>
-                                <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{a.patientName || '—'}</div>
-                                <div style={{ fontSize:'12px', color:'#475569' }}>
-                                    {a.doctorName?.toLowerCase().startsWith('dr') ? a.doctorName : `Dr. ${a.doctorName || '—'}`}
-                                </div>
-                                <div>
-                                    {dt ? (
-                                        <>
-                                            <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>
-                                                {dt.toLocaleDateString('en-IN',{ day:'numeric', month:'short', year:'numeric' })}
-                                            </div>
-                                            <div style={{ fontSize:'10px', color:'#2563eb' }}>
-                                                🕐 {dt.toLocaleTimeString('en-IN',{ hour:'2-digit', minute:'2-digit' })}
-                                            </div>
-                                        </>
-                                    ) : '—'}
-                                </div>
-                                <div style={{ fontSize:'11px', color:'#94a3b8', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                                    {a.reason || 'General Consultation'}
-                                </div>
-                                <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', background:sc.bg, color:sc.color, padding:'3px 9px', borderRadius:'20px', fontSize:'10px', fontWeight:600, width:'fit-content' }}>
-                                    <span style={{ width:'5px', height:'5px', borderRadius:'50%', background:sc.dot }}/>{a.status}
-                                </span>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-        </div>
-    );
+// ── Password strength ─────────────────────────────────────────────
+function pwdStrength(p) {
+    if (!p) return null;
+    let s = 0;
+    if (p.length >= 8)           s++;
+    if (/[A-Z]/.test(p))         s++;
+    if (/[0-9]/.test(p))         s++;
+    if (/[^A-Za-z0-9]/.test(p))  s++;
+    if (s <= 1) return { label:'Weak',   color:'#ef4444', w:'25%' };
+    if (s === 2) return { label:'Fair',   color:'#f59e0b', w:'55%' };
+    if (s === 3) return { label:'Good',   color:'#22c55e', w:'75%' };
+    return               { label:'Strong 🔒', color:'#2563eb', w:'100%' };
 }
 
-// ── AdminDepartments ──────────────────────────────────────────────────────
-export function AdminDepartments() {
-    const [depts,   setDepts]   = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [modal,   setModal]   = useState(false);
-    const [form,    setForm]    = useState({ name:'' });
-    const [saving,  setSaving]  = useState(false);
-    const [success, setSuccess] = useState('');
-    const [error,   setError]   = useState('');
+export default function AdminProfile() {
+    const { user }   = useAuth();
+    const [profile,  setProfile]  = useState(null);
+    const [admins,   setAdmins]   = useState([]);
+    const [loading,  setLoading]  = useState(true);
+    const [modal,    setModal]    = useState(false);
+    const [form,     setForm]     = useState({ email:'', password:'', fullName:'', phone:'' });
+    const [fieldErrors, setFieldErrors] = useState({});
+    const [saving,   setSaving]   = useState(false);
+    const [error,    setError]    = useState('');
+    const [success,  setSuccess]  = useState('');
+    const [showPass, setShowPass] = useState(false);
+    const [touched,  setTouched]  = useState({});
 
-    useEffect(() => {
-        api.get('/public/departments')
-            .then(r => setDepts(r.data || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
+    useEffect(() => { fetchAll(); }, []);
+
+    async function fetchAll() {
+        setLoading(true);
+        try {
+            const [p, a] = await Promise.all([
+                api.get('/admin/profile'),
+                api.get('/admin/all'),
+            ]);
+            setProfile(p.data);
+            setAdmins(a.data || []);
+        } catch {}
+        finally { setLoading(false); }
+    }
+
+    function openModal() {
+        setModal(true);
+        setError('');
+        setFieldErrors({});
+        setTouched({});
+        setShowPass(false);
+        setForm({ email:'', password:'', fullName:'', phone:'' });
+    }
+
+    function closeModal() {
+        setModal(false);
+        setError('');
+        setFieldErrors({});
+        setTouched({});
+    }
+
+    // Update field + live-validate if already touched
+    function update(key, val) {
+        const next = { ...form, [key]: val };
+        setForm(next);
+        if (touched[key]) {
+            const errs = validateAdminForm(next);
+            if (errs[key]) setFieldErrors(p => ({ ...p, [key]: errs[key] }));
+            else           setFieldErrors(p => { const n = {...p}; delete n[key]; return n; });
+        }
+    }
+
+    function blur(key) {
+        setTouched(t => ({ ...t, [key]: true }));
+        const errs = validateAdminForm(form);
+        if (errs[key]) setFieldErrors(p => ({ ...p, [key]: errs[key] }));
+        else           setFieldErrors(p => { const n = {...p}; delete n[key]; return n; });
+    }
 
     async function handleCreate() {
+        // Touch all fields
+        setTouched({ email:true, password:true, fullName:true, phone:true });
+        const errs = validateAdminForm(form);
+        setFieldErrors(errs);
+        if (Object.keys(errs).length > 0) return;
+
         setSaving(true); setError('');
         try {
-            await api.post('/admin/departments', form);
-            setSuccess('Department created!');
-            setModal(false);
-            const r = await api.get('/public/departments');
-            setDepts(r.data || []);
+            await api.post('/admin/create-admin', {
+                ...form,
+                phone: form.phone.replace(/[\s\-+()]/g, ''),
+            });
+            setSuccess('Admin created successfully!');
+            closeModal();
+            fetchAll();
             setTimeout(() => setSuccess(''), 3000);
-        } catch(e) {
-            setError(e.response?.data?.message || 'Failed');
+        } catch (e) {
+            const msg = e.response?.data?.message || '';
+            const lower = msg.toLowerCase();
+            if (lower.includes('email') || lower.includes('exists') || lower.includes('duplicate'))
+                setFieldErrors({ email: 'An account with this email already exists.' });
+            else if (lower.includes('phone'))
+                setFieldErrors({ phone: 'This phone number is already registered.' });
+            else
+                setError(msg || 'Failed to create admin. Please try again.');
         } finally { setSaving(false); }
     }
 
-    const bgC = ['#eff6ff','#f5f3ff','#fff7ed','#f0fdf4','#fef2f2','#f0f9ff'];
-    const txC = ['#2563eb','#7c3aed','#c2410c','#15803d','#dc2626','#0369a1'];
+    const inp = (hasErr) => ({
+        width:'100%', border:`1.5px solid ${hasErr ? '#fca5a5' : '#e2e8f0'}`,
+        borderRadius:'9px', padding:'10px 12px', fontSize:'13px', outline:'none',
+        background: hasErr ? '#fff5f5' : '#f8fafc',
+        fontFamily:"'DM Sans',sans-serif", boxSizing:'border-box',
+        transition:'border-color .15s, box-shadow .15s', color:'#0f172a',
+    });
+
+    const lbl = { fontSize:'11px', fontWeight:700, color:'#64748b', marginBottom:'5px', display:'block', textTransform:'uppercase', letterSpacing:'.05em' };
+
+    function FieldErr({ k }) {
+        return fieldErrors[k]
+            ? <div style={{ fontSize:'10px', color:'#ef4444', fontWeight:600, marginTop:'4px' }}>⚠ {fieldErrors[k]}</div>
+            : null;
+    }
+
+    const str = pwdStrength(form.password);
+    const initials = profile?.email?.slice(0, 2).toUpperCase() || 'AD';
 
     return (
         <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
-            <style>{BASE_STYLES}</style>
+            <style>{`
+                @keyframes fadeUp  { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+                @keyframes modalIn { from{opacity:0;transform:scale(.95) translateY(8px)} to{opacity:1;transform:scale(1) translateY(0)} }
+                @keyframes spin    { to{transform:rotate(360deg)} }
+                @import url('https://fonts.googleapis.com/css2?family=Lora:wght@700&family=DM+Sans:wght@400;500;600;700&display=swap');
 
-            <div style={HERO_STYLE}>
-                <div>
-                    <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>Management</div>
-                    <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>🏥 Departments</div>
-                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>{depts.length} departments</div>
-                </div>
-                <button onClick={() => { setModal(true); setForm({ name:'' }); setError(''); }}
-                        style={{ padding:'9px 20px', borderRadius:'10px', border:'none', background:'#fff', color:'#2563eb', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                    + Add Department
-                </button>
+                .arow:hover   { background:#f8faff!important; }
+                .inp-focus:focus { border-color:#2563eb!important; box-shadow:0 0 0 3px rgba(37,99,235,.1)!important; outline:none; }
+                .inp-focus.err:focus { border-color:#ef4444!important; box-shadow:0 0 0 3px rgba(239,68,68,.1)!important; }
+
+                /* ── Responsive grid ── */
+                .ap-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+                .ap-hero  { padding:18px 28px; }
+                .ap-body  { padding:20px 28px; }
+                .modal-box { width:440px; padding:28px; }
+
+                @media (max-width:900px) {
+                    .ap-grid { grid-template-columns:1fr!important; }
+                }
+                @media (max-width:600px) {
+                    .ap-hero { padding:14px 16px!important; }
+                    .ap-body { padding:14px 16px!important; }
+                    .modal-box { width:calc(100vw - 32px)!important; padding:20px!important; max-width:100%!important; }
+                    .detail-grid { grid-template-columns:1fr!important; }
+                }
+            `}</style>
+
+            {/* Hero */}
+            <div className="ap-hero" style={{ background:'linear-gradient(135deg,#1e3a8a,#2563eb)', flexShrink:0 }}>
+                <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>System</div>
+                <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>👤 Admin Profile</div>
+                <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>{admins.length} administrator(s) registered</div>
             </div>
 
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
+            <div className="ap-body" style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
+
                 {success && (
                     <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', color:'#166534', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'14px' }}>✅ {success}</div>
                 )}
 
-                {loading ? (
-                    <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>Loading...</div>
-                ) : (
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:'14px', animation:'fadeUp .3s ease' }}>
-                        {depts.map((d, idx) => (
-                            <div key={d.id} style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', padding:'20px', boxShadow:'0 1px 4px rgba(0,0,0,.04)' }}>
-                                <div style={{ width:'48px', height:'48px', borderRadius:'14px', background:bgC[idx%bgC.length], display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', marginBottom:'12px' }}>🏥</div>
-                                <div style={{ fontSize:'15px', fontWeight:700, color:'#0f172a', marginBottom:'4px' }}>{d.name}</div>
-                                <div style={{ fontSize:'11px', color:'#94a3b8', marginBottom:'10px' }}>
-                                    Head: {d.headDoctorName || '—'}
+                <div className="ap-grid" style={{ animation:'fadeUp .3s ease' }}>
+
+                    {/* ── My Profile Card ── */}
+                    <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', boxShadow:'0 1px 6px rgba(0,0,0,.04)', overflow:'hidden' }}>
+
+                        {/* Card Hero */}
+                        <div style={{ background:'linear-gradient(135deg,#1e3a8a,#2563eb)', padding:'24px', position:'relative', overflow:'hidden' }}>
+                            <div style={{ position:'absolute', right:'-20px', top:'-20px', width:'100px', height:'100px', borderRadius:'50%', background:'rgba(255,255,255,.07)', pointerEvents:'none' }}/>
+                            <div style={{ display:'flex', alignItems:'center', gap:'14px', flexWrap:'wrap' }}>
+                                <div style={{ width:'56px', height:'56px', borderRadius:'14px', background:'rgba(255,255,255,.2)', color:'#fff', fontSize:'20px', fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid rgba(255,255,255,.3)', flexShrink:0 }}>
+                                    {initials}
                                 </div>
-                                {d.doctorNames && [...d.doctorNames].length > 0 && (
-                                    <div style={{ display:'flex', gap:'6px', flexWrap:'wrap' }}>
-                                        {[...d.doctorNames].slice(0,3).map(n => (
-                                            <span key={n} style={{ background:bgC[idx%bgC.length], color:txC[idx%txC.length], padding:'2px 8px', borderRadius:'20px', fontSize:'10px', fontWeight:600 }}>
-                                                Dr. {n}
-                                            </span>
-                                        ))}
+                                <div style={{ minWidth:0 }}>
+                                    <div style={{ fontSize:'16px', fontWeight:700, color:'#fff', marginBottom:'2px' }}>{profile?.fullName || 'Admin'}</div>
+                                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.7)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{profile?.email}</div>
+                                    <div style={{ marginTop:'6px' }}>
+                                        <span style={{ background:'rgba(255,255,255,.2)', padding:'2px 10px', borderRadius:'20px', fontSize:'10px', fontWeight:600, color:'#fff' }}>🔐 ADMIN</span>
                                     </div>
-                                )}
+                                </div>
                             </div>
-                        ))}
+                        </div>
+
+                        {/* Details */}
+                        <div style={{ padding:'20px' }}>
+                            <div style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.07em', marginBottom:'14px' }}>Profile Details</div>
+
+                            {loading ? (
+                                <div style={{ color:'#94a3b8', fontSize:'12px', textAlign:'center', padding:'20px' }}>Loading...</div>
+                            ) : (
+                                <div className="detail-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
+                                    {[
+                                        { label:'Email',    value: profile?.email,    icon:'📧' },
+                                        { label:'Phone',    value: profile?.phone ? `+91 ${profile.phone.replace(/^91/,'')}` : null, icon:'📞' },
+                                        { label:'Full Name',value: profile?.fullName,  icon:'👤' },
+                                        { label:'Role',     value: 'Administrator',    icon:'🔐' },
+                                    ].map(item => (
+                                        <div key={item.label} style={{ background:'#f8fafc', borderRadius:'9px', padding:'10px 12px', border:'1px solid #f1f5f9' }}>
+                                            <div style={{ fontSize:'9px', color:'#94a3b8', marginBottom:'4px', textTransform:'uppercase', letterSpacing:'.06em', display:'flex', alignItems:'center', gap:4 }}>
+                                                <span>{item.icon}</span> {item.label}
+                                            </div>
+                                            <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                                {item.value || '—'}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            <div style={{ marginTop:'14px', background:'#f8fafc', borderRadius:'9px', padding:'10px 12px', fontSize:'11px', color:'#64748b', lineHeight:1.6, border:'1px solid #f1f5f9' }}>
+                                💡 To update your profile, contact the system administrator or update directly in settings.
+                            </div>
+                        </div>
                     </div>
-                )}
+
+                    {/* ── All Admins ── */}
+                    <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', boxShadow:'0 1px 6px rgba(0,0,0,.04)', overflow:'hidden', display:'flex', flexDirection:'column' }}>
+
+                        <div style={{ padding:'16px 20px', borderBottom:'1px solid #f1f5f9', display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                            <div>
+                                <div style={{ fontSize:'14px', fontWeight:700, color:'#0f172a', marginBottom:'2px' }}>All Admins</div>
+                                <div style={{ fontSize:'11px', color:'#94a3b8' }}>{admins.length} administrator(s)</div>
+                            </div>
+                            <button onClick={openModal}
+                                    style={{ padding:'8px 16px', borderRadius:'9px', border:'none', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', fontSize:'12px', fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:'6px', whiteSpace:'nowrap', boxShadow:'0 2px 8px rgba(37,99,235,.3)' }}>
+                                + Add Admin
+                            </button>
+                        </div>
+
+                        <div style={{ flex:1, overflowY:'auto', maxHeight:'380px' }}>
+                            {loading ? (
+                                <div style={{ padding:'40px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>Loading...</div>
+                            ) : admins.length === 0 ? (
+                                <div style={{ padding:'40px', textAlign:'center', color:'#94a3b8', fontSize:'12px' }}>No admins found</div>
+                            ) : admins.map((a, idx) => {
+                                const colors = [['#eff6ff','#2563eb'],['#f5f3ff','#7c3aed'],['#fff7ed','#c2410c'],['#f0fdf4','#15803d']];
+                                const [bg, tc] = colors[idx % colors.length];
+                                const ini  = (a.fullName || a.email)?.slice(0, 2).toUpperCase() || 'AD';
+                                const isMe = a.email === profile?.email;
+                                return (
+                                    <div key={a.id} className="arow"
+                                         style={{ display:'flex', alignItems:'center', gap:'12px', padding:'12px 20px', borderBottom:'1px solid #f8fafc', transition:'background .12s' }}>
+                                        <div style={{ width:'36px', height:'36px', borderRadius:'10px', background:bg, color:tc, fontSize:'12px', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>{ini}</div>
+                                        <div style={{ flex:1, minWidth:0 }}>
+                                            <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a', display:'flex', alignItems:'center', gap:'6px' }}>
+                                                <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.fullName || 'Admin'}</span>
+                                                {isMe && <span style={{ background:'#eff6ff', color:'#2563eb', fontSize:'9px', fontWeight:700, padding:'1px 6px', borderRadius:'4px', flexShrink:0 }}>YOU</span>}
+                                            </div>
+                                            <div style={{ fontSize:'10px', color:'#94a3b8', marginTop:'1px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{a.email}</div>
+                                        </div>
+                                        <div style={{ display:'flex', alignItems:'center', gap:'4px', flexShrink:0 }}>
+                                            <span style={{ width:'6px', height:'6px', borderRadius:'50%', background:'#22c55e', display:'inline-block' }}/>
+                                            <span style={{ fontSize:'10px', color:'#94a3b8' }}>Active</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Info note */}
+                <div style={{ marginTop:'16px', background:'#eff6ff', border:'1px solid #bfdbfe', borderRadius:'12px', padding:'14px 16px', fontSize:'11px', color:'#1e40af', lineHeight:1.7 }}>
+                    <div style={{ fontWeight:700, marginBottom:'3px' }}>ℹ️ Admin Account Info</div>
+                    Admin accounts have full system access — manage doctors, patients, appointments, medicines and billing. Create new admin accounts only for trusted users.
+                </div>
             </div>
 
+            {/* ── Create Admin Modal ── */}
             {modal && (
-                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(4px)' }}>
-                    <div style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'380px', boxShadow:'0 20px 60px rgba(0,0,0,.2)', animation:'modalIn .2s ease' }}>
-                        <div style={{ fontSize:'18px', fontWeight:700, color:'#0f172a', marginBottom:'16px', fontFamily:"'Lora',serif" }}>🏥 Add Department</div>
-                        {error && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'8px', padding:'10px', marginBottom:'12px' }}>⚠️ {error}</div>}
-                        <label style={lbl}>Department Name *</label>
-                        <input style={{ ...inp, marginBottom:'16px' }} placeholder="e.g. Cardiology"
-                               value={form.name} onChange={e => setForm({ name:e.target.value })}/>
+                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(6px)', padding:'16px', overflowY:'auto' }}>
+                    <div className="modal-box" style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'440px', maxWidth:'100%', boxShadow:'0 24px 80px rgba(0,0,0,.25)', animation:'modalIn .25s ease', position:'relative' }}>
+
+                        {/* Header */}
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+                            <div>
+                                <div style={{ fontSize:'18px', fontWeight:700, color:'#0f172a', fontFamily:"'Lora',serif" }}>🔐 Create New Admin</div>
+                                <div style={{ fontSize:'11px', color:'#94a3b8', marginTop:'2px' }}>Fill all required fields carefully</div>
+                            </div>
+                            <button onClick={closeModal}
+                                    style={{ width:'30px', height:'30px', borderRadius:'8px', border:'none', background:'#f1f5f9', color:'#64748b', fontSize:'16px', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>×</button>
+                        </div>
+
+                        {error && (
+                            <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'9px', padding:'10px 12px', marginBottom:'14px', lineHeight:1.5 }}>
+                                ⚠️ {error}
+                            </div>
+                        )}
+
+                        <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+
+                            {/* Email */}
+                            <div>
+                                <label style={lbl}>Email Address *</label>
+                                <input
+                                    className={`inp-focus${fieldErrors.email ? ' err' : ''}`}
+                                    type="email" placeholder="admin@hospital.com"
+                                    value={form.email} autoComplete="off"
+                                    style={inp(!!fieldErrors.email)}
+                                    onChange={e => update('email', e.target.value)}
+                                    onBlur={() => blur('email')}
+                                />
+                                <FieldErr k="email"/>
+                            </div>
+
+                            {/* Password */}
+                            <div>
+                                <label style={lbl}>Password *</label>
+                                <div style={{ position:'relative' }}>
+                                    <input
+                                        className={`inp-focus${fieldErrors.password ? ' err' : ''}`}
+                                        type={showPass ? 'text' : 'password'}
+                                        placeholder="Min 6 characters"
+                                        value={form.password} autoComplete="new-password"
+                                        style={{ ...inp(!!fieldErrors.password), paddingRight:'40px' }}
+                                        onChange={e => update('password', e.target.value)}
+                                        onBlur={() => blur('password')}
+                                    />
+                                    <button type="button" onClick={() => setShowPass(v => !v)}
+                                            style={{ position:'absolute', right:'11px', top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'#94a3b8', cursor:'pointer', display:'flex', alignItems:'center', padding:'3px', borderRadius:'4px', transition:'color .15s' }}
+                                            onMouseEnter={e => e.currentTarget.style.color = '#475569'}
+                                            onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                                        <EyeIcon open={showPass}/>
+                                    </button>
+                                </div>
+                                {/* Strength bar */}
+                                {str && !fieldErrors.password && (
+                                    <div style={{ marginTop:'6px' }}>
+                                        <div style={{ height:'3px', background:'#f1f5f9', borderRadius:'99px', overflow:'hidden' }}>
+                                            <div style={{ height:'100%', width:str.w, background:str.color, borderRadius:'99px', transition:'width .3s, background .3s' }}/>
+                                        </div>
+                                        <span style={{ fontSize:'10px', color:str.color, fontWeight:700, marginTop:'3px', display:'block' }}>{str.label}</span>
+                                    </div>
+                                )}
+                                <FieldErr k="password"/>
+                            </div>
+
+                            {/* Full Name */}
+                            <div>
+                                <label style={lbl}>Full Name <span style={{ color:'#94a3b8', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional)</span></label>
+                                <input
+                                    className={`inp-focus${fieldErrors.fullName ? ' err' : ''}`}
+                                    type="text" placeholder="Admin User"
+                                    value={form.fullName} autoComplete="off"
+                                    style={inp(!!fieldErrors.fullName)}
+                                    onChange={e => update('fullName', e.target.value)}
+                                    onBlur={() => blur('fullName')}
+                                />
+                                <FieldErr k="fullName"/>
+                            </div>
+
+                            {/* Phone */}
+                            <div>
+                                <label style={lbl}>
+                                    Phone Number <span style={{ color:'#94a3b8', fontWeight:400, textTransform:'none', letterSpacing:0 }}>(optional · 10 digits)</span>
+                                </label>
+                                <div style={{ position:'relative' }}>
+                                    <div style={{ position:'absolute', left:'12px', top:'50%', transform:'translateY(-50%)', fontSize:'12px', color:'#64748b', fontWeight:600, pointerEvents:'none' }}>+91</div>
+                                    <input
+                                        className={`inp-focus${fieldErrors.phone ? ' err' : ''}`}
+                                        type="tel" placeholder="9876543210"
+                                        value={form.phone} maxLength={10} autoComplete="off"
+                                        style={{ ...inp(!!fieldErrors.phone), paddingLeft:'40px' }}
+                                        onChange={e => update('phone', e.target.value.replace(/\D/g, ''))}
+                                        onBlur={() => blur('phone')}
+                                    />
+                                </div>
+                                {/* Phone progress indicator */}
+                                {form.phone && !fieldErrors.phone && (
+                                    <div style={{ fontSize:'10px', marginTop:'4px', fontWeight:600, color: form.phone.length === 10 && /^[6-9]/.test(form.phone) ? '#059669' : '#f59e0b' }}>
+                                        {form.phone.length === 10 && /^[6-9]/.test(form.phone) ? '✓ Valid number' : `${form.phone.length}/10 digits`}
+                                    </div>
+                                )}
+                                <FieldErr k="phone"/>
+                            </div>
+                        </div>
+
+                        {/* Warning */}
+                        <div style={{ background:'#fffbeb', border:'1px solid #fde68a', borderRadius:'9px', padding:'10px 12px', fontSize:'11px', color:'#92400e', marginTop:'16px', marginBottom:'16px', lineHeight:1.6, display:'flex', gap:8, alignItems:'flex-start' }}>
+                            <span style={{ flexShrink:0, fontSize:14 }}>⚠️</span>
+                            <span>Admin accounts have <strong>full system access</strong>. Create only for trusted users.</span>
+                        </div>
+
                         <div style={{ display:'flex', gap:'8px' }}>
-                            <button onClick={handleCreate} disabled={saving} style={{ flex:1, padding:'11px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
-                                {saving ? 'Creating...' : '✓ Create'}
+                            <button onClick={handleCreate} disabled={saving}
+                                    style={{ flex:1, padding:'12px', borderRadius:'10px', border:'none', background: saving ? '#9ca3af' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', fontSize:'13px', fontWeight:700, cursor: saving ? 'not-allowed' : 'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'opacity .2s' }}>
+                                {saving ? (
+                                    <><span style={{ width:14, height:14, border:'2px solid rgba(255,255,255,.3)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin .7s linear infinite', display:'inline-block' }}/> Creating...</>
+                                ) : '✓ Create Admin'}
                             </button>
-                            <button onClick={() => setModal(false)} style={{ padding:'11px 20px', borderRadius:'10px', border:'1px solid #e2e8f0', background:'#fff', color:'#374151', fontSize:'13px', cursor:'pointer' }}>
+                            <button onClick={closeModal}
+                                    style={{ padding:'12px 20px', borderRadius:'10px', border:'1px solid #e2e8f0', background:'#fff', color:'#374151', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>
                                 Cancel
                             </button>
                         </div>
                     </div>
                 </div>
             )}
-        </div>
-    );
-}
-
-// ── AdminMedicines ────────────────────────────────────────────────────────
-export function AdminMedicines() {
-    const [meds,       setMeds]       = useState([]);
-    const [loading,    setLoading]    = useState(true);
-    const [search,     setSearch]     = useState('');
-    const [modal,      setModal]      = useState(null);
-    const [form,       setForm]       = useState({});
-    const [saving,     setSaving]     = useState(false);
-    const [success,    setSuccess]    = useState('');
-    const [error,      setError]      = useState('');
-    const [restock,    setRestock]    = useState(null);
-    const [restockQty, setRestockQty] = useState(10);
-
-    useEffect(() => { fetchMeds(); }, []);
-
-    async function fetchMeds() {
-        setLoading(true);
-        try { const r = await api.get('/medicines'); setMeds(r.data || []); }
-        catch {} finally { setLoading(false); }
-    }
-
-    async function handleSave() {
-        setSaving(true); setError('');
-        try {
-            if (modal === 'add') await api.post('/medicines', form);
-            else await api.put(`/medicines/${modal.id}`, form);
-            setSuccess(modal === 'add' ? 'Medicine added!' : 'Updated!');
-            setModal(null); fetchMeds();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch(e) {
-            setError(e.response?.data?.message || 'Failed');
-        } finally { setSaving(false); }
-    }
-
-    async function handleRestock() {
-        try {
-            await api.patch(`/medicines/${restock.id}/restock`, null, { params:{ quantity:restockQty } });
-            setSuccess(`Restocked by ${restockQty}!`);
-            setRestock(null); fetchMeds();
-            setTimeout(() => setSuccess(''), 3000);
-        } catch(e) { setError(e.response?.data?.message || 'Restock failed'); }
-    }
-
-    async function handleDelete(id) {
-        try { await api.delete(`/medicines/${id}`); fetchMeds(); }
-        catch(e) { setError(e.response?.data?.message || 'Delete failed'); }
-    }
-
-    const filtered = meds.filter(m =>
-        !search || m.name?.toLowerCase().includes(search.toLowerCase())
-    );
-
-    const typeColors = {
-        TABLET:    { bg:'#eff6ff', color:'#2563eb' },
-        CAPSULE:   { bg:'#f5f3ff', color:'#7c3aed' },
-        SYRUP:     { bg:'#fff7ed', color:'#c2410c' },
-        INJECTION: { bg:'#fef2f2', color:'#dc2626' },
-        CREAM:     { bg:'#f0fdf4', color:'#15803d' },
-        DROPS:     { bg:'#f0f9ff', color:'#0369a1' },
-        INHALER:   { bg:'#fef9c3', color:'#854d0e' },
-    };
-
-    return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
-            <style>{BASE_STYLES + `.mrow:hover{background:#f8faff!important;}`}</style>
-
-            <div style={HERO_STYLE}>
-                <div>
-                    <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>Management</div>
-                    <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>💊 Medicines</div>
-                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>{meds.length} in inventory</div>
-                </div>
-                <button onClick={() => { setModal('add'); setForm({ name:'', type:'TABLET', price:'', stock:'', dosage:'', manufacturer:'' }); setError(''); }}
-                        style={{ padding:'9px 20px', borderRadius:'10px', border:'none', background:'#fff', color:'#2563eb', fontSize:'12px', fontWeight:700, cursor:'pointer' }}>
-                    + Add Medicine
-                </button>
-            </div>
-
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
-                {success && <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', color:'#166534', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'14px' }}>✅ {success}</div>}
-                {error && !modal && !restock && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'14px' }}>⚠️ {error}</div>}
-
-                <input value={search} onChange={e => setSearch(e.target.value)}
-                       placeholder="🔍  Search medicines..."
-                       style={{ ...inp, maxWidth:'380px', boxShadow:'0 1px 3px rgba(0,0,0,.04)', marginBottom:'16px' }}/>
-
-                <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', overflow:'hidden', animation:'fadeUp .3s ease' }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr 1.6fr', padding:'10px 20px', background:'#f8fafc', borderBottom:'2px solid #f1f5f9' }}>
-                        {['Medicine','Type','Price','Stock','Status','Actions'].map(h => (
-                            <div key={h} style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.07em' }}>{h}</div>
-                        ))}
-                    </div>
-
-                    {loading ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>Loading...</div>
-                    ) : filtered.length === 0 ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>No medicines found.</div>
-                    ) : filtered.map(m => {
-                        const tc = typeColors[m.type] || { bg:'#f3f4f6', color:'#374151' };
-                        return (
-                            <div key={m.id} className="mrow" style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr 1fr 1fr 1.6fr', padding:'12px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center', transition:'background .12s' }}>
-                                <div>
-                                    <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{m.name}</div>
-                                    <div style={{ fontSize:'10px', color:'#94a3b8' }}>{m.manufacturer || '—'}</div>
-                                </div>
-                                <span style={{ background:tc.bg, color:tc.color, padding:'2px 8px', borderRadius:'6px', fontSize:'10px', fontWeight:600, width:'fit-content' }}>
-                                    {m.type || '—'}
-                                </span>
-                                <div style={{ fontSize:'12px', fontWeight:600, color:'#059669' }}>₹{m.price || '—'}</div>
-                                <div style={{ fontSize:'13px', fontWeight:700, color: m.stock<=5?'#dc2626':m.stock<=10?'#d97706':'#0f172a' }}>{m.stock}</div>
-                                <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', background:m.lowStock?'#fef3c7':'#f0fdf4', color:m.lowStock?'#d97706':'#15803d', padding:'3px 9px', borderRadius:'20px', fontSize:'10px', fontWeight:600, width:'fit-content' }}>
-                                    <span style={{ width:'5px', height:'5px', borderRadius:'50%', background:m.lowStock?'#f59e0b':'#22c55e' }}/>
-                                    {m.lowStock ? 'Low' : 'OK'}
-                                </span>
-                                <div style={{ display:'flex', gap:'4px' }}>
-                                    <button onClick={() => { setModal(m); setForm({...m}); setError(''); }} style={{ padding:'4px 8px', borderRadius:'6px', border:'none', background:'#eff6ff', color:'#2563eb', fontSize:'10px', fontWeight:600, cursor:'pointer' }}>✏️</button>
-                                    <button onClick={() => { setRestock(m); setRestockQty(10); }} style={{ padding:'4px 8px', borderRadius:'6px', border:'none', background:'#f0fdf4', color:'#15803d', fontSize:'10px', fontWeight:600, cursor:'pointer' }}>📦</button>
-                                    <button onClick={() => handleDelete(m.id)} style={{ padding:'4px 8px', borderRadius:'6px', border:'none', background:'#fef2f2', color:'#dc2626', fontSize:'10px', fontWeight:600, cursor:'pointer' }}>🗑️</button>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Add/Edit Modal */}
-            {modal !== null && (
-                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(4px)' }}>
-                    <div style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'460px', boxShadow:'0 20px 60px rgba(0,0,0,.2)', animation:'modalIn .2s ease' }}>
-                        <div style={{ display:'flex', justifyContent:'space-between', marginBottom:'20px' }}>
-                            <div style={{ fontSize:'18px', fontWeight:700, color:'#0f172a', fontFamily:"'Lora',serif" }}>
-                                {modal === 'add' ? '💊 Add Medicine' : '✏️ Edit Medicine'}
-                            </div>
-                            <button onClick={() => setModal(null)} style={{ width:'30px', height:'30px', borderRadius:'8px', border:'none', background:'#f1f5f9', color:'#64748b', fontSize:'16px', cursor:'pointer' }}>×</button>
-                        </div>
-                        {error && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'8px', padding:'10px', marginBottom:'12px' }}>⚠️ {error}</div>}
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'12px' }}>
-                            {[
-                                ['name','Name *','text','Paracetamol'],
-                                ['price','Price (₹)','number','500'],
-                                ['stock','Stock *','number','100'],
-                                ['dosage','Dosage','text','500mg'],
-                                ['manufacturer','Manufacturer','text','ABC Pharma'],
-                            ].map(([k,l,t,p]) => (
-                                <div key={k}>
-                                    <label style={lbl}>{l}</label>
-                                    <input type={t} style={inp} placeholder={p}
-                                           value={form[k] || ''}
-                                           onChange={e => setForm(f => ({ ...f, [k]:e.target.value }))}/>
-                                </div>
-                            ))}
-                            <div>
-                                <label style={lbl}>Type</label>
-                                <select style={inp} value={form.type || 'TABLET'}
-                                        onChange={e => setForm(f => ({ ...f, type:e.target.value }))}>
-                                    {['TABLET','CAPSULE','SYRUP','INJECTION','CREAM','DROPS','INHALER'].map(t => (
-                                        <option key={t}>{t}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        </div>
-                        <div style={{ display:'flex', gap:'8px', marginTop:'20px' }}>
-                            <button onClick={handleSave} disabled={saving} style={{ flex:1, padding:'12px', borderRadius:'10px', border:'none', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', color:'#fff', fontSize:'13px', fontWeight:700, cursor:'pointer' }}>
-                                {saving ? 'Saving...' : modal==='add' ? '✓ Add' : '✓ Save'}
-                            </button>
-                            <button onClick={() => setModal(null)} style={{ padding:'12px 20px', borderRadius:'10px', border:'1px solid #e2e8f0', background:'#fff', color:'#374151', fontSize:'13px', cursor:'pointer' }}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Restock Modal */}
-            {restock && (
-                <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.5)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(4px)' }}>
-                    <div style={{ background:'#fff', borderRadius:'20px', padding:'28px', width:'340px', textAlign:'center', boxShadow:'0 20px 60px rgba(0,0,0,.2)', animation:'modalIn .2s ease' }}>
-                        <div style={{ fontSize:'36px', marginBottom:'10px' }}>📦</div>
-                        <div style={{ fontSize:'16px', fontWeight:700, color:'#0f172a', marginBottom:'6px' }}>Restock {restock.name}</div>
-                        <p style={{ fontSize:'12px', color:'#6b7280', marginBottom:'16px' }}>Current stock: <strong>{restock.stock}</strong></p>
-                        <input type="number" min="1" value={restockQty}
-                               onChange={e => setRestockQty(Number(e.target.value))}
-                               style={{ width:'100%', border:'1px solid #e2e8f0', borderRadius:'9px', padding:'10px', fontSize:'14px', fontWeight:600, textAlign:'center', outline:'none', marginBottom:'16px', boxSizing:'border-box' }}/>
-                        <div style={{ display:'flex', gap:'8px' }}>
-                            <button onClick={handleRestock} style={{ flex:1, padding:'11px', borderRadius:'10px', border:'none', background:'#059669', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>✓ Restock</button>
-                            <button onClick={() => setRestock(null)} style={{ flex:1, padding:'11px', borderRadius:'10px', border:'1px solid #e2e8f0', background:'#fff', color:'#374151', fontSize:'13px', cursor:'pointer' }}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ── AdminBills ────────────────────────────────────────────────────────────
-export function AdminBills() {
-    const [bills,   setBills]   = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [filter,  setFilter]  = useState('ALL');
-    const [success, setSuccess] = useState('');
-    const [error,   setError]   = useState('');
-
-    useEffect(() => {
-        api.get('/admin/bills', { params:{ page:0, size:200 } })
-            .then(r => setBills(r.data?.content || r.data || []))
-            .catch(() => {})
-            .finally(() => setLoading(false));
-    }, []);
-
-    async function markPaid(id) {
-        try {
-            await api.patch(`/bills/${id}/mark-paid`);
-            setSuccess('Bill marked as PAID!');
-            setBills(prev => prev.map(b => b.id === id ? { ...b, status:'PAID' } : b));
-            setTimeout(() => setSuccess(''), 3000);
-        } catch(e) {
-            setError(e.response?.data?.message || 'Failed');
-            setTimeout(() => setError(''), 3000);
-        }
-    }
-
-    async function downloadPdf(billId) {
-        try {
-            const res = await api.get(`/bills/${billId}/download`, { responseType:'blob' });
-            const url = URL.createObjectURL(new Blob([res.data], { type:'application/pdf' }));
-            const a = document.createElement('a');
-            a.href = url; a.download = `invoice-${billId}.pdf`; a.click();
-            URL.revokeObjectURL(url);
-        } catch { alert('Download failed'); }
-    }
-
-    const filtered = filter === 'ALL' ? bills : bills.filter(b => b.status === filter);
-    const totalRev = bills.filter(b => b.status === 'PAID').reduce((s, b) => s + (b.totalAmount || 0), 0);
-    const unpaid   = bills.filter(b => b.status === 'UNPAID').length;
-
-    return (
-        <div style={{ display:'flex', flexDirection:'column', height:'100%', background:'#f0f4f8', fontFamily:"'DM Sans','Outfit',sans-serif" }}>
-            <style>{BASE_STYLES + `.brow:hover{background:#f8faff!important;}`}</style>
-
-            <div style={{ ...HERO_STYLE, justifyContent:'flex-start' }}>
-                <div>
-                    <div style={{ fontSize:'10px', color:'rgba(255,255,255,.5)', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:'3px' }}>Management</div>
-                    <div style={{ fontSize:'20px', fontWeight:700, color:'#fff', fontFamily:"'Lora',serif" }}>💰 Bills & Payments</div>
-                    <div style={{ fontSize:'11px', color:'rgba(255,255,255,.55)', marginTop:'2px' }}>{bills.length} total bills</div>
-                </div>
-            </div>
-
-            <div style={{ flex:1, overflowY:'auto', padding:'20px 28px' }}>
-                {success && <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', color:'#166534', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'14px' }}>✅ {success}</div>}
-                {error && <div style={{ background:'#fef2f2', border:'1px solid #fecaca', color:'#dc2626', fontSize:'12px', borderRadius:'9px', padding:'10px 14px', marginBottom:'14px' }}>⚠️ {error}</div>}
-
-                {/* Summary chips */}
-                <div style={{ display:'flex', gap:'10px', marginBottom:'16px' }}>
-                    {[
-                        { label:'Total Revenue', value:`₹${totalRev.toLocaleString('en-IN')}`, color:'#059669', bg:'#f0fdf4' },
-                        { label:'Unpaid Bills',  value:unpaid,                                   color:'#dc2626', bg:'#fef2f2' },
-                        { label:'Total Bills',   value:bills.length,                             color:'#2563eb', bg:'#eff6ff' },
-                    ].map(s => (
-                        <div key={s.label} style={{ background:s.bg, borderRadius:'10px', padding:'8px 16px', display:'flex', alignItems:'center', gap:'8px' }}>
-                            <span style={{ fontSize:'18px', fontWeight:800, color:s.color }}>{s.value}</span>
-                            <span style={{ fontSize:'11px', color:s.color, fontWeight:500, opacity:.8 }}>{s.label}</span>
-                        </div>
-                    ))}
-                </div>
-
-                {/* Filter */}
-                <div style={{ display:'flex', gap:'6px', marginBottom:'14px' }}>
-                    {['ALL','PAID','UNPAID'].map(f => (
-                        <button key={f} onClick={() => setFilter(f)} style={{
-                            padding:'6px 16px', borderRadius:'20px', fontSize:'11px',
-                            fontWeight:600, cursor:'pointer',
-                            border: filter===f ? 'none' : '1px solid #e2e8f0',
-                            background: filter===f ? '#2563eb' : '#fff',
-                            color: filter===f ? '#fff' : '#6b7280',
-                        }}>{f}</button>
-                    ))}
-                </div>
-
-                <div style={{ background:'#fff', borderRadius:'16px', border:'1px solid #e8edf2', overflow:'hidden', animation:'fadeUp .3s ease' }}>
-                    <div style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr 1fr 1fr 1fr 1.2fr', padding:'10px 20px', background:'#f8fafc', borderBottom:'2px solid #f1f5f9' }}>
-                        {['Patient','Doctor','Fee','GST','Total','Status','Actions'].map(h => (
-                            <div key={h} style={{ fontSize:'10px', fontWeight:700, color:'#94a3b8', textTransform:'uppercase', letterSpacing:'.07em' }}>{h}</div>
-                        ))}
-                    </div>
-
-                    {loading ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>Loading bills...</div>
-                    ) : filtered.length === 0 ? (
-                        <div style={{ padding:'60px', textAlign:'center', color:'#94a3b8' }}>No bills found.</div>
-                    ) : filtered.map(b => (
-                        <div key={b.id} className="brow" style={{ display:'grid', gridTemplateColumns:'2fr 2fr 1fr 1fr 1fr 1fr 1.2fr', padding:'12px 20px', borderBottom:'1px solid #f8fafc', alignItems:'center', transition:'background .12s' }}>
-                            <div style={{ fontSize:'12px', fontWeight:600, color:'#0f172a' }}>{b.patientName || '—'}</div>
-                            <div style={{ fontSize:'12px', color:'#475569' }}>
-                                {b.doctorName?.toLowerCase().startsWith('dr') ? b.doctorName : `Dr. ${b.doctorName || '—'}`}
-                            </div>
-                            <div style={{ fontSize:'12px', color:'#374151' }}>₹{b.consultationFee || '—'}</div>
-                            <div style={{ fontSize:'12px', color:'#374151' }}>₹{b.gstAmount?.toFixed(0) || '—'}</div>
-                            <div style={{ fontSize:'13px', fontWeight:700, color:'#059669' }}>₹{b.totalAmount?.toFixed(0) || '—'}</div>
-                            <span style={{ display:'inline-flex', alignItems:'center', gap:'4px', background:b.status==='PAID'?'#f0fdf4':'#fef3c7', color:b.status==='PAID'?'#15803d':'#92400e', padding:'3px 9px', borderRadius:'20px', fontSize:'10px', fontWeight:700, width:'fit-content' }}>
-                                <span style={{ width:'5px', height:'5px', borderRadius:'50%', background:b.status==='PAID'?'#22c55e':'#f59e0b' }}/>
-                                {b.status}
-                            </span>
-                            <div style={{ display:'flex', gap:'4px' }}>
-                                {b.status === 'UNPAID' ? (
-                                    <button onClick={() => markPaid(b.id)} style={{ padding:'5px 10px', borderRadius:'7px', border:'none', background:'#059669', color:'#fff', fontSize:'11px', fontWeight:600, cursor:'pointer' }}>✓ Paid</button>
-                                ) : (
-                                    <span style={{ fontSize:'10px', color:'#94a3b8', fontStyle:'italic' }}>Paid ✓</span>
-                                )}
-                                <button onClick={() => downloadPdf(b.id)} style={{ padding:'5px 10px', borderRadius:'7px', border:'1px solid #e2e8f0', background:'#fff', color:'#2563eb', fontSize:'11px', fontWeight:600, cursor:'pointer' }}>⬇ PDF</button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
         </div>
     );
 }
