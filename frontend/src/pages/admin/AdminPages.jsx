@@ -409,7 +409,7 @@ export function AdminMedicines() {
         CAPSULE:   { bg:'#f5f3ff', color:'#7c3aed' },
         SYRUP:     { bg:'#fff7ed', color:'#c2410c' },
         INJECTION: { bg:'#fef2f2', color:'#dc2626' },
-        CREAM:     { bg:'#f0fdf4', color:'#15803d' },
+        OINTMENT:     { bg:'#f0fdf4', color:'#15803d' },
         DROPS:     { bg:'#f0f9ff', color:'#0369a1' },
         INHALER:   { bg:'#fef9c3', color:'#854d0e' },
     };
