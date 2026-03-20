@@ -392,14 +392,30 @@ export function AdminMedicines() {
     }
 
     async function handleSave() {
+        // Basic validation
+        if (!form.name?.trim()) { setError('Medicine name is required'); return; }
+        if (!form.stock && form.stock !== 0) { setError('Stock is required'); return; }
+
         setSaving(true); setError('');
         try {
-            if (modal === 'add') await api.post('/medicines', form);
-            else                  await api.put(`/medicines/${modal.id}`, form);
+            const payload = {
+                ...form,
+                name:         form.name?.trim(),
+                price:        form.price        ? Number(form.price)        : null,
+                stock:        form.stock        ? Number(form.stock)        : 0,
+                type:         form.type         || 'TABLET',
+                dosage:       form.dosage?.trim()       || null,
+                manufacturer: form.manufacturer?.trim() || null,
+            };
+            if (modal === 'add') await api.post('/medicines', payload);
+            else                  await api.put(`/medicines/${modal.id}`, payload);
             setSuccess(modal === 'add' ? 'Medicine added!' : 'Updated!');
             setModal(null); fetchMeds();
             setTimeout(() => setSuccess(''), 3000);
-        } catch(e) { setError(e.response?.data?.message || 'Failed'); }
+        } catch(e) {
+            const msg = e.response?.data?.message || e.response?.data?.error || '';
+            setError(msg || 'Failed to save medicine. Please try again.');
+        }
         finally { setSaving(false); }
     }
 
