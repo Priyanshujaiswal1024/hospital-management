@@ -70,10 +70,10 @@
 # # FROM patient
 # # WHERE user_id = (SELECT id FROM app_user WHERE username = 'pk@gmail.com');
 # #
-# # select *
-# # from patient;
-# # select *
-# # from app_user;
+select *
+from patient;
+select *
+from app_user;
 # # select *
 # # from user_roles;
 # # # select *
@@ -158,4 +158,4 @@
 # -- Check which one has data
 #
 # SHOW TABLES;
-UPDATE app_user SET email_verified = true WHERE username = 'sanjulata2576@gmail.com';
+# UPDATE app_user SET email_verified = true WHERE username = 'pk@gmail.com';
