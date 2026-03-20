@@ -16,7 +16,8 @@ public class CorsConfig {
         CorsConfiguration config = new CorsConfiguration();
 
         config.setAllowedOrigins(List.of(
-                "http://localhost:5173"    // React dev server
+                "http://localhost:5173",
+                "https://hospital-management-eight-sandy.vercel.app"
         ));
 
         config.setAllowedMethods(List.of(
