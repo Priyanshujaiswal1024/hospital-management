@@ -32,7 +32,7 @@ import DoctorPrescriptions  from './pages/doctor/DoctorPrescriptions';
 import DoctorMedicalRecords from './pages/doctor/DoctorMedicalRecords';
 import AddPrescription      from './pages/doctor/AddPrescription';
 import CreateMedicalRecord  from './pages/doctor/CreateMedicalRecord';
-import ViewPrescription     from './pages/doctor/viewPrescription.jsx';
+import ViewPrescription     from './pages/doctor/ViewPrescription.jsx';
 import ViewMedicalRecord    from './pages/doctor/ViewMedicalRecord';
 
 // ── admin ──
