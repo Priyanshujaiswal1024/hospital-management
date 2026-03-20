@@ -40,6 +40,7 @@ import AdminLayout      from './pages/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminDoctors     from './pages/admin/AdminDoctors.jsx';
 import { AdminPatients, AdminAppointments, AdminDepartments, AdminMedicines, AdminBills } from './pages/admin/AdminPages.jsx';
+
 import AdminProfile     from './pages/admin/AdminProfile';
 
 function RoleRedirect() {
