@@ -1,195 +1,219 @@
-# Hospital Management System – Backend
+# Hospital Management System
 
-A secure and scalable backend system built with **Spring Boot** to manage hospital operations including patients, doctors, appointments, prescriptions, and billing.
+A full-stack Hospital Management System built with **Spring Boot** and **React.js** for efficient management of patients, doctors, appointments, billing, and medical records.
 
-> Demonstrates REST API development, JWT-based authentication, role-based authorization, pagination, layered architecture, and test-driven development.
+---
+
+## Features
+
+### Authentication & Security
+- JWT / OAuth2 based login
+- Role-based access control — Admin, Doctor, Patient
+- Secured REST APIs with Spring Security
+
+### Doctor Module
+- Manage doctor profiles and specializations
+- Set availability slots
+- View and manage appointments
+
+### Patient Module
+- Patient registration and login
+- Book and cancel appointments
+- View prescriptions and medical history
+
+### Appointment Management
+- Slot-based booking system
+- Appointment status tracking (Pending / Confirmed / Cancelled)
+
+### Prescription & Billing
+- Generate and manage prescriptions
+- Download prescription as PDF
+- Invoice and billing generation
+
+### Admin Dashboard
+- Manage doctors, patients, and departments
+- View system analytics
+- Full control over appointments
+
+### Monitoring, Logging & Testing
+- Centralized logging using SLF4J / Logback
+- Application monitoring with Spring Boot Actuator
+- Health checks and metrics endpoints
+- Unit testing using JUnit
+- Mock-based testing using Mockito
+- Tested service and controller layers
 
 ---
 
 ## Tech Stack
 
-| Layer | Technologies |
-|-------|-------------|
-| **Language** | Java 17 |
-| **Framework** | Spring Boot, Spring MVC, Spring Security |
-| **Authentication** | JWT, BCrypt, OAuth2 *(Planned)* |
-| **Persistence** | Hibernate ORM (JPA), Spring Data JPA, JDBC |
-| **Database** | MySQL, MongoDB |
-| **Testing** | JUnit, Mockito |
-| **Documentation** | Swagger / OpenAPI |
-| **Tools** | Maven, Git, Postman, IntelliJ IDEA, MySQL Workbench |
+**Backend**
+- Java 17
+- Spring Boot
+- Spring Security
+- JWT / OAuth2
+- JPA / Hibernate
+- MySQL / MongoDB
+- Maven
+- Spring Boot Actuator
+- SLF4J / Logback (Logging)
+
+**Frontend**
+- React.js
+- Axios
+- Tailwind CSS / Bootstrap
+
+**Tools**
+- Swagger (API Docs)
+- JUnit (Unit Testing)
+- Mockito (Mock Testing)
+- Postman
+- Git & GitHub
 
 ---
 
-## Project Structure
+## Folder Structure
 
+**Backend**
 ```
-hospital-management/
+hospital-management-backend/
 │
-├── src/
-│   └── main/
-│       └── java/
-│           └── com/priyanshu/hospitalmanagement/
-│               ├── config/               # App & security configuration
-│               ├── controller/           # REST controllers (HTTP layer)
-│               ├── dto/                  # Data Transfer Objects
-│               ├── entity/               # JPA entity models
-│               ├── repository/           # Spring Data JPA repositories
-│               ├── security/             # JWT filters, auth logic
-│               ├── service/              # Business logic layer
-│               └── HospitalManagementApplication.java
+├── src/main/java/com/hospital/
+│   ├── config/              # Security, JWT, OAuth configs
+│   ├── controller/          # REST API controllers
+│   ├── service/             # Business logic
+│   ├── repository/          # JPA repositories
+│   ├── entity/              # Database entities
+│   ├── dto/                 # Request/Response DTOs
+│   ├── exception/           # Global exception handling
+│   ├── util/                # Utility classes (PDF, etc.)
+│   └── HospitalApplication.java
 │
-├── screenshots/
-│   ├── swagger-auth.png
-│   └── swagger-patient.png
+├── src/main/resources/
+│   └── application.properties
 │
 ├── pom.xml
 └── README.md
 ```
 
----
-
-## Architecture
-
-The project follows a clean **layered architecture**:
-
+**Frontend**
 ```
-HTTP Request
-     │
-     ▼
-Controller Layer       →  Handles incoming REST requests, input validation
-     │
-     ▼
-Service Layer          →  Contains all business logic
-     │
-     ▼
-Repository Layer       →  Database interaction via Spring Data JPA
-     │
-     ▼
-Database (MySQL)
+hospital-management-frontend/
+│
+├── src/
+│   ├── components/          # Reusable UI components
+│   ├── pages/               # Login, Dashboard, Appointments, etc.
+│   ├── services/            # Axios API calls
+│   ├── context/             # Auth context (JWT storage)
+│   ├── hooks/               # Custom React hooks
+│   ├── utils/               # Helper functions
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── public/
+├── package.json
+└── README.md
 ```
 
-The **Security Layer** sits horizontally across all layers, intercepting every request for JWT validation and role-based authorization before it reaches the controller.
+---
+
+## Installation & Setup
+
+**Backend**
+```bash
+git clone https://github.com/your-username/hospital-management-backend.git
+cd hospital-management-backend
+mvn clean install
+mvn spring-boot:run
+```
+
+**Frontend**
+```bash
+git clone https://github.com/your-username/hospital-management-frontend.git
+cd hospital-management-frontend
+npm install
+npm start
+```
 
 ---
 
-## Security
+## Environment Variables
 
-Spring Security with **stateless JWT authentication**.
+Create a `.env` or update `application.properties` in the backend:
 
-| Feature | Details |
-|---------|---------|
-| Authentication | JWT token issued on login |
-| Password Storage | BCrypt hashing |
-| Token Validation | Custom JWT filter on every request |
-| Authorization | Method-level via `@PreAuthorize` |
-| Session Policy | Stateless (no server-side sessions) |
-
-**User Roles:**
-
-| Role | Access |
-|------|--------|
-| `ADMIN` | Full system access |
-| `DOCTOR` | Own profile, appointments, prescriptions |
-| `PATIENT` | Own records, booking, billing, see all doctors, see availablity slots |
-
----
-
-## Core Features
-
-### Authentication
-- User registration with role assignment
-- Login returns signed JWT token
-- Token-based stateless authorization on all protected routes
-
-### Patient Management
-- Register new patients
-- View and update patient records
-
-### Doctor Management
-- Manage doctor profiles
-- Department-based doctor listing and filtering
-
-### Appointment System
-- Book appointments based on doctor slot availability
-- Cancel existing appointments
-- Real-time slot management
-
-### Prescription System
-- Generate prescriptions post-appointment
-- Download prescription as a PDF file
-
-### Billing System
-- Auto-generate invoices after consultation
-- Track payment status per appointment
-
-### Pagination
-- All list endpoints support cursor-based pagination for efficient large dataset retrieval
+```
+SPRING_DATASOURCE_URL=your_db_url
+SPRING_DATASOURCE_USERNAME=your_username
+SPRING_DATASOURCE_PASSWORD=your_password
+JWT_SECRET=your_secret_key
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+```
 
 ---
 
 ## API Documentation
 
-Swagger UI is integrated for interactive API exploration and testing.
-
-Once the application is running, visit:
-
+Swagger UI available at:
 ```
 http://localhost:8080/swagger-ui/index.html
 ```
 
-Screenshots:
+---
 
-| Swagger Auth | Swagger Patient |
-|---|---|
-| ![Swagger Auth](screenshots/swagger-auth.png) | ![Swagger Patient](screenshots/swagger-patient.png) |
+## Deployment
+
+| Layer     | Platform              |
+|-----------|-----------------------|
+| Frontend  | Vercel                |
+| Backend   | Render                |
+| Database  | MySQL / MongoDB Cloud |
+
+---
+
+## Screenshots
+
+> Add screenshots here — Login Page, Dashboard, Appointment Page, Billing, etc.
 
 ---
 
 ## Testing
 
-| Layer | Tool | Coverage |
-|-------|------|----------|
-| Service Layer | JUnit + Mockito | Business logic validation |
-| Controller Layer | JUnit + Mockito | Request/response behaviour |
-| Integration | JUnit | End-to-end flow validation |
-
-Run all tests:
-
-```bash
-mvn test
-```
+- Unit testing using **JUnit**
+- Mock testing using **Mockito**
+- Service and Controller layer testing
+- API testing using **Postman**
 
 ---
 
-## Getting Started
+## Monitoring & Health Check
 
-### Prerequisites
-- Java 17+
-- MySQL 8+
-- Maven 3.8+
+Spring Boot Actuator endpoints:
 
-### Setup
+- `/actuator/health`
+- `/actuator/info`
+- `/actuator/metrics`
 
-```bash
-# 1. Clone the repository
-git clone https://github.com/Priyanshujaiswal1024/hospital-management.git
-cd hospital-management
+Used for monitoring application health and performance.
 
-# 2. Configure database
-# Edit src/main/resources/application.properties
-spring.datasource.url=jdbc:mysql://localhost:3306/hospital_db
-spring.datasource.username=your_username
-spring.datasource.password=your_password
+---
 
-# 3. Build and run
-mvn spring-boot:run
-```
+## Future Enhancements
+
+- Email / SMS notifications
+- Doctor-Patient chat system
+- Payment gateway integration
+- Advanced analytics dashboard
+- AI-based symptom checker
 
 ---
 
 ## Author
 
-**Priyanshu Jaiswal**
-- GitHub: [@Priyanshujaiswal1024](https://github.com/Priyanshujaiswal1024)
-- LinkedIn: [priyanshujava](https://www.linkedin.com/in/priyanshujava/)
+**Priyanshu**  
+Aspiring Java Full Stack Developer  
+[LinkedIn](https://www.linkedin.com/in/priyanshujava/)
+
+---
+
+> If you found this project helpful, please give it a ⭐ on GitHub!
