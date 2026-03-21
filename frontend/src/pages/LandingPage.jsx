@@ -398,7 +398,7 @@ function SignupModal({ onClose, onSwitchToLogin }) {
 
         const pwd = fields.password;
         if (!pwd)                      e.password = 'Password is required';
-        else if (pwd.length < 6)       e.password = 'Password must be at least 6 characters';
+        else if (pwd.length < 6)       e.password = 'Password must be at least 8 characters';
         else if (pwd.length > 128)     e.password = 'Password is too long';
         else if (/^\s|\s$/.test(pwd))  e.password = 'Password cannot start or end with a space';
 
