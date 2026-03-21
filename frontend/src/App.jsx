@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth }  from './auth/AuthContext';
 import ProtectedRoute             from './components/ProtectedRoute';
-
+import { useEffect } from "react";
 import LandingPage    from './pages/LandingPage';
 import VerifyOtp      from './pages/auth/VerifyOtp';
 import ForgotPassword from './pages/auth/ForgotPassword';
@@ -60,7 +60,12 @@ function RoleRedirect() {
 }
 
 export default function App() {
-  return (
+  useEffect(() => {
+    fetch("https://hospital-management-0rx3.onrender.com/api/v1")
+        .then(() => console.log("Backend warmed up"))
+        .catch(() => console.log("Backend starting..."));
+  }, []);
+      return (
       <AuthProvider>
         <BrowserRouter>
           <Routes>
