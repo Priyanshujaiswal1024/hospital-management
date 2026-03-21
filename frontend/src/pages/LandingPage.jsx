@@ -3,114 +3,118 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import api from '../api/axios.js';
 
-// ── Error Parsing ─────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   ERROR HELPERS
+══════════════════════════════════════════════════════ */
 function parseError(err) {
     if (!err.response) return null;
     const d = err.response?.data;
     if (!d) return null;
     if (typeof d === 'string') return d.trim();
-    if (d.message) return String(d.message).trim();
-    if (d.error)   return String(d.error).trim();
-    if (d.msg)     return String(d.msg).trim();
-    if (d.detail)  return String(d.detail).trim();
+    for (const k of ['message', 'error', 'msg', 'detail', 'description', 'reason']) {
+        if (d[k]) return String(d[k]).trim();
+    }
     if (Array.isArray(d.errors) && d.errors.length > 0) return String(d.errors[0]).trim();
     try { return JSON.stringify(d); } catch { return null; }
 }
 
 /*
-  ✅ IMPROVED: friendlySignupError
-  Returns { field, msg, action } where:
-    field  — which input to highlight ('username' | 'phone' | 'password' | null)
-    msg    — human-readable message shown under the field
-    action — optional CTA { label, type } e.g. { label: 'Sign in instead', type: 'login' }
+  ✅ KEY FIX: Spring Boot throws 500 for Hibernate constraint violations like:
+     "could not execute statement; constraint [UK_phone]"
+     "Duplicate entry '8307723297' for key 'users.UK_phone'"
+  Old code showed "Something went wrong" — now shows specific messages.
 */
 function friendlySignupError(err) {
+    if (!err.response) return {
+        field: null,
+        msg: 'No internet connection. Please check your network and try again.',
+        action: null,
+    };
+
     const status = err.response?.status;
     const raw    = parseError(err) || '';
     const lower  = raw.toLowerCase();
 
-    // Network error
-    if (!err.response) {
-        return {
-            field: null,
-            msg: 'No internet connection. Please check your network and try again.',
-            action: null,
-        };
-    }
+    const isPhone = lower.includes('phone') || lower.includes('mobile') ||
+        lower.includes('contact') || /\b[6-9]\d{9}\b/.test(raw);
+    const isEmail = lower.includes('email') || lower.includes('username') ||
+        lower.includes('user')  || lower.includes('mail');
 
-    // ── Helper to decide phone vs email ──────────────────────────────────────
-    const isPhoneDupe = lower.includes('phone') || lower.includes('mobile') || /\b[6-9]\d{9}\b/.test(raw);
-    const isEmailDupe = lower.includes('email') || lower.includes('username') || lower.includes('user');
-
-    // 409 Conflict — server explicitly says duplicate
-    if (status === 409) {
-        if (isPhoneDupe) {
-            return {
-                field: 'phone',
-                msg: 'This phone number is already linked to an account.',
-                action: { label: 'Sign in instead', type: 'login' },
-            };
-        }
-        return {
-            field: 'username',
-            msg: 'An account with this email already exists.',
-            action: { label: 'Sign in instead', type: 'login' },
-        };
-    }
-
-    // Database / ORM constraint errors
-    const isDuplicate =
+    // Detects ALL duplicate patterns including Hibernate/JPA 500 errors
+    const isDupe =
+        lower.includes('duplicate') ||
         lower.includes('duplicate entry') ||
         lower.includes('duplicate key') ||
         lower.includes('already exists') ||
         lower.includes('already registered') ||
+        lower.includes('already in use') ||
         lower.includes('unique constraint') ||
         lower.includes('violates unique') ||
         lower.includes('integrity constraint') ||
-        lower.includes('could not execute') ||
         lower.includes('constraint violation') ||
-        lower.includes('constraint [23');
+        lower.includes('could not execute') ||
+        lower.includes('uk_') ||           // Spring Boot unique key names e.g. UK_phone
+        lower.includes('uq_') ||
+        lower.includes('unique index') ||
+        lower.includes('constraint [');    // Hibernate: constraint [UK_phone]
 
-    if (isDuplicate) {
-        if (isPhoneDupe) {
-            return {
-                field: 'phone',
-                msg: 'This phone number is already registered.',
-                action: { label: 'Sign in with this number', type: 'login' },
-            };
-        }
-        if (isEmailDupe) {
-            return {
-                field: 'username',
-                msg: 'An account with this email already exists.',
-                action: { label: 'Sign in instead', type: 'login' },
-            };
-        }
-        // Generic duplicate — fallback to email field
+    // 409 Conflict — server explicitly says duplicate
+    // 409 Conflict — server explicitly says duplicate
+    if (status === 409) {
+        if (isPhone) return {
+            field: 'phone',
+            msg: 'This phone number is already registered.',
+            action: { label: 'Try with Different Number', type: 'retry' },
+        };
+        return {
+            field: 'username',
+            msg: 'An account with this email already exists.',
+            action: { label: 'Try with Different Email', type: 'retry' },
+        };
+    }
+    // DB / ORM constraint errors (usually 500 from Hibernate)
+    if (isDupe) {
+        if (isPhone) return {
+            field: 'phone',
+            msg: 'This phone number is already registered.',
+            action: { label: 'Try with Different Number', type: 'retry' },
+        };
+        if (isEmail) return {
+            field: 'username',
+            msg: 'An account with this email already exists.',
+            action: { label: 'Try with Different Email', type: 'retry' },
+        };
         return {
             field: 'username',
             msg: 'An account with these details already exists.',
-            action: { label: 'Sign in instead', type: 'login' },
+            action: { label: 'Try with Different Email', type: 'retry' },
         };
     }
-
-    // 400 Bad Request — validation errors from backend
+    // 400 Bad Request
     if (status === 400) {
-        if (isPhoneDupe)    return { field: 'phone',    msg: raw || 'Invalid phone number.',    action: null };
-        if (isEmailDupe)    return { field: 'username', msg: raw || 'Invalid email address.',   action: null };
+        if (isPhone) return { field: 'phone',    msg: raw || 'Invalid phone number.',   action: null };
+        if (isEmail) return { field: 'username', msg: raw || 'Invalid email address.',  action: null };
         if (lower.includes('password')) return { field: 'password', msg: raw || 'Invalid password.', action: null };
         if (lower.includes('name'))     return { field: 'fullName', msg: raw || 'Invalid name.',     action: null };
         if (raw) return { field: null, msg: raw, action: null };
     }
 
-    // 500 or other — still try to be helpful
-    if (isPhoneDupe) return { field: 'phone',    msg: 'This phone number may already be registered.', action: { label: 'Try signing in', type: 'login' } };
-    if (isEmailDupe) return { field: 'username', msg: 'This email may already be registered.',        action: { label: 'Try signing in', type: 'login' } };
+    // 500+ — instead of "Something went wrong", suggest sign in
+    // (Most signup 500s are constraint violations the backend didn't handle with 409)
+    if (status >= 500) {
+        if (isPhone) return { field: 'phone',    msg: 'This phone number may already be registered.', action: { label: 'Try signing in', type: 'login' } };
+        if (isEmail) return { field: 'username', msg: 'This email may already be registered.',        action: { label: 'Try signing in', type: 'login' } };
+        return {
+            field: null,
+            msg: 'This email or phone number may already be registered.',
+            action: { label: 'Try signing in instead', type: 'login' },
+        };
+    }
 
     return {
         field: null,
-        msg: raw || `Registration failed (${status ?? 'network error'}). Please try again.`,
-        action: null,
+        msg: raw || 'Registration failed. Please try again or sign in if you already have an account.',
+        action: { label: 'Sign in instead', type: 'login' },
     };
 }
 
@@ -119,8 +123,7 @@ function friendlyLoginError(err) {
     const status = err.response?.status;
     const raw    = parseError(err) || '';
     const lower  = raw.toLowerCase();
-    if (status === 401 || status === 403)
-        return 'Incorrect email or password. Please try again.';
+    if (status === 401 || status === 403) return 'Incorrect email or password. Please try again.';
     if (lower.includes('verify') || lower.includes('not verified'))
         return 'Please verify your email first. Check your inbox for the verification link.';
     if (status === 404 || lower.includes('not found') || lower.includes('no account'))
@@ -130,28 +133,32 @@ function friendlyLoginError(err) {
     return raw || `Login failed (${status ?? 'network error'}). Please try again.`;
 }
 
-// ── Validation helpers ────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   VALIDATORS
+══════════════════════════════════════════════════════ */
 function isValidEmail(email) {
     return /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email.trim());
 }
 
 function passwordStrength(p) {
     if (!p) return null;
-    let score = 0;
-    if (p.length >= 8)           score++;
-    if (p.length >= 12)          score++;
-    if (/[A-Z]/.test(p))         score++;
-    if (/[a-z]/.test(p))         score++;
-    if (/[0-9]/.test(p))         score++;
-    if (/[^A-Za-z0-9]/.test(p))  score++;
-    if (score <= 1) return { label: 'Too weak',   color: '#ef4444', w: '16%',  level: 0 };
-    if (score <= 2) return { label: 'Weak',       color: '#f97316', w: '35%',  level: 1 };
-    if (score <= 3) return { label: 'Fair',       color: '#eab308', w: '55%',  level: 2 };
-    if (score <= 4) return { label: 'Good',       color: '#22c55e', w: '75%',  level: 3 };
-    return              { label: 'Strong 🔒',     color: '#0a4f3a', w: '100%', level: 4 };
+    let s = 0;
+    if (p.length >= 8)           s++;
+    if (p.length >= 12)          s++;
+    if (/[A-Z]/.test(p))         s++;
+    if (/[a-z]/.test(p))         s++;
+    if (/[0-9]/.test(p))         s++;
+    if (/[^A-Za-z0-9]/.test(p))  s++;
+    if (s <= 1) return { label: 'Too weak',  color: '#ef4444', w: '16%' };
+    if (s <= 2) return { label: 'Weak',      color: '#f97316', w: '35%' };
+    if (s <= 3) return { label: 'Fair',      color: '#eab308', w: '55%' };
+    if (s <= 4) return { label: 'Good',      color: '#22c55e', w: '75%' };
+    return           { label: 'Strong 🔒',  color: '#0a4f3a', w: '100%' };
 }
 
-// ── Icons ─────────────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   ICONS
+══════════════════════════════════════════════════════ */
 function GoogleIcon() {
     return (
         <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
@@ -168,8 +175,7 @@ function GoogleIcon() {
 function EyeIcon({ open }) {
     return open ? (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-            <circle cx="12" cy="12" r="3"/>
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
         </svg>
     ) : (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -179,7 +185,9 @@ function EyeIcon({ open }) {
     );
 }
 
-// ── Shared sub-components ─────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   SHARED SUB-COMPONENTS
+══════════════════════════════════════════════════════ */
 function GoogleButton({ label = 'Continue with Google' }) {
     function handleGoogle() {
         const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
@@ -224,10 +232,7 @@ function PasswordInput({ value, onChange, onBlur, placeholder, hasError, id }) {
     );
 }
 
-/*
-  ✅ FieldErr — now supports an optional `action` (e.g. "Sign in instead" link)
-     onAction is called when the link is clicked
-*/
+/* ✅ FieldErr with optional action link "Sign in instead →" */
 function FieldErr({ msg, action, onAction }) {
     if (!msg) return null;
     return (
@@ -248,7 +253,9 @@ function FieldErr({ msg, action, onAction }) {
     );
 }
 
-// ── Login Modal ───────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   LOGIN MODAL
+══════════════════════════════════════════════════════ */
 function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
     const [form,    setForm]    = useState({ username: prefillEmail, password: '' });
     const [errors,  setErrors]  = useState({});
@@ -256,17 +263,17 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
     const { login } = useAuth();
     const navigate  = useNavigate();
 
-    // If parent passes prefillEmail after mount (redirect from signup error), update
+    // When signup says "email exists" and switches to login, prefill the email
     useEffect(() => {
         if (prefillEmail) setForm(f => ({ ...f, username: prefillEmail }));
     }, [prefillEmail]);
 
     function validateLogin() {
-        const errs = {};
-        if (!form.username.trim())             errs.username = 'Email address is required';
-        else if (!isValidEmail(form.username)) errs.username = 'Please enter a valid email address';
-        if (!form.password)                    errs.password = 'Password is required';
-        return errs;
+        const e = {};
+        if (!form.username.trim())             e.username = 'Email address is required';
+        else if (!isValidEmail(form.username)) e.username = 'Please enter a valid email address';
+        if (!form.password)                    e.password = 'Password is required';
+        return e;
     }
 
     async function handleSubmit(e) {
@@ -311,11 +318,8 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
                 <div className="form-group">
                     <label className="form-label" htmlFor="login-email">Email Address</label>
                     <input
-                        id="login-email"
-                        type="email"
-                        placeholder="your@email.com"
-                        value={form.username}
-                        autoComplete="email"
+                        id="login-email" type="email" placeholder="your@email.com"
+                        value={form.username} autoComplete="email"
                         className={`form-input ${errors.username ? 'input-error' : ''}`}
                         onChange={e => { clear('username'); setForm({ ...form, username: e.target.value }); }}
                     />
@@ -330,10 +334,8 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
                         </span>
                     </div>
                     <PasswordInput
-                        id="login-pass"
-                        placeholder="Enter your password"
-                        value={form.password}
-                        hasError={!!errors.password}
+                        id="login-pass" placeholder="Enter your password"
+                        value={form.password} hasError={!!errors.password}
                         onChange={e => { clear('password'); setForm({ ...form, password: e.target.value }); }}
                     />
                     <FieldErr msg={errors.password} />
@@ -348,7 +350,6 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
                 New to Priyansh Care?{' '}
                 <span className="link-text" onClick={onSwitchToSignup}>Create account</span>
             </p>
-
             <div className="trust-badges">
                 {['🔒 Secure Login', '🏥 NABH Certified', '✅ Verified'].map(b => (
                     <span key={b} className="trust-badge">{b}</span>
@@ -358,71 +359,60 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
     );
 }
 
-// ── Signup Modal ──────────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   SIGNUP MODAL
+══════════════════════════════════════════════════════ */
 function SignupModal({ onClose, onSwitchToLogin }) {
     const [form, setForm] = useState({
         username: '', password: '', confirm: '', fullName: '', phone: '',
     });
-    const [fieldErrors, setFieldErrors] = useState({});
-    // ✅ fieldActions — optional CTA per-field (e.g. "Sign in instead")
-    const [fieldActions, setFieldActions] = useState({});
+    const [fieldErrors,  setFieldErrors]  = useState({});
+    const [fieldActions, setFieldActions] = useState({}); // CTA per-field e.g. "Sign in instead"
     const [globalError,  setGlobalError]  = useState('');
+    const [globalAction, setGlobalAction] = useState(null); // CTA for global error
     const [loading,      setLoading]      = useState(false);
     const [touched,      setTouched]      = useState({});
-
-    // ✅ Pre-fill email in login modal when user clicks "Sign in instead"
-    const [switchEmail,  setSwitchEmail]  = useState('');
-    const [doSwitch,     setDoSwitch]     = useState(false);
-
     const navigate = useNavigate();
 
-    // When doSwitch triggers, switch to login modal with email prefilled
-    useEffect(() => {
-        if (doSwitch) {
-            onSwitchToLogin(switchEmail);
-        }
-    }, [doSwitch]);
-
-    // ── Frontend validation ────────────────────────────────────────────────
     function validate(fields = form) {
-        const errs = {};
+        const e = {};
 
         const name = fields.fullName.trim();
-        if (!name)                errs.fullName = 'Full name is required';
-        else if (name.length < 2) errs.fullName = 'Name must be at least 2 characters';
-        else if (name.length > 60) errs.fullName = 'Name must be under 60 characters';
-        else if (/\d/.test(name)) errs.fullName = 'Name cannot contain numbers';
-        else if (!/^[a-zA-Z\s.',-]+$/.test(name)) errs.fullName = 'Name contains invalid characters';
+        if (!name)                    e.fullName = 'Full name is required';
+        else if (name.length < 2)     e.fullName = 'Name must be at least 2 characters';
+        else if (name.length > 60)    e.fullName = 'Name must be under 60 characters';
+        else if (/\d/.test(name))     e.fullName = 'Name cannot contain numbers';
+        else if (!/^[a-zA-Z\s.',-]+$/.test(name)) e.fullName = 'Name contains invalid characters';
 
         const phone = fields.phone.replace(/[\s\-+()]/g, '');
-        if (!phone)                    errs.phone = 'Phone number is required';
-        else if (!/^\d+$/.test(phone)) errs.phone = 'Phone number must contain only digits';
-        else if (phone.length !== 10)  errs.phone = `${phone.length < 10 ? `${10 - phone.length} more digit(s) needed` : 'Too many digits — must be 10'}`;
-        else if (!/^[6-9]/.test(phone)) errs.phone = 'Enter a valid Indian mobile number (starts with 6, 7, 8 or 9)';
+        if (!phone)                     e.phone = 'Phone number is required';
+        else if (!/^\d+$/.test(phone))  e.phone = 'Phone must contain only digits';
+        else if (phone.length < 10)     e.phone = `${10 - phone.length} more digit${10 - phone.length !== 1 ? 's' : ''} needed`;
+        else if (phone.length > 10)     e.phone = 'Phone must be exactly 10 digits';
+        else if (!/^[6-9]/.test(phone)) e.phone = 'Must start with 6, 7, 8 or 9 (Indian mobile)';
 
         const email = fields.username.trim();
-        if (!email)                    errs.username = 'Email address is required';
-        else if (!isValidEmail(email)) errs.username = 'Enter a valid email (e.g. john@gmail.com)';
-        else if (email.length > 100)   errs.username = 'Email is too long';
+        if (!email)                    e.username = 'Email address is required';
+        else if (!isValidEmail(email)) e.username = 'Enter a valid email (e.g. john@gmail.com)';
+        else if (email.length > 100)   e.username = 'Email is too long';
 
         const pwd = fields.password;
-        if (!pwd)                       errs.password = 'Password is required';
-        else if (pwd.length < 6)        errs.password = 'Password must be at least 6 characters';
-        else if (pwd.length > 128)      errs.password = 'Password is too long (max 128 characters)';
-        else if (/^\s|\s$/.test(pwd))   errs.password = 'Password cannot start or end with a space';
+        if (!pwd)                      e.password = 'Password is required';
+        else if (pwd.length < 6)       e.password = 'Password must be at least 6 characters';
+        else if (pwd.length > 128)     e.password = 'Password is too long';
+        else if (/^\s|\s$/.test(pwd))  e.password = 'Password cannot start or end with a space';
 
-        if (!fields.confirm)                          errs.confirm = 'Please confirm your password';
-        else if (fields.password !== fields.confirm)  errs.confirm = 'Passwords do not match';
+        if (!fields.confirm)                         e.confirm = 'Please confirm your password';
+        else if (fields.password !== fields.confirm) e.confirm = 'Passwords do not match';
 
-        return errs;
+        return e;
     }
 
     function validateField(name) {
         setTouched(t => ({ ...t, [name]: true }));
         const errs = validate();
-        if (errs[name]) {
-            setFieldErrors(p => ({ ...p, [name]: errs[name] }));
-        } else {
+        if (errs[name]) setFieldErrors(p => ({ ...p, [name]: errs[name] }));
+        else {
             setFieldErrors(p => { const n = { ...p }; delete n[name]; return n; });
             setFieldActions(p => { const n = { ...p }; delete n[name]; return n; });
         }
@@ -437,17 +427,17 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                 setFieldErrors(p => ({ ...p, [key]: errs[key] }));
             } else {
                 setFieldErrors(p => { const n = { ...p }; delete n[key]; return n; });
-                // clear server-set action too if user corrected the field
                 setFieldActions(p => { const n = { ...p }; delete n[key]; return n; });
             }
         }
         setGlobalError('');
+        setGlobalAction(null);
     }
 
     async function handleSubmit(e) {
         e.preventDefault();
         setGlobalError('');
-        // Clear previous server-side actions
+        setGlobalAction(null);
         setFieldActions({});
         const errs = validate();
         setFieldErrors(errs);
@@ -470,32 +460,30 @@ function SignupModal({ onClose, onSwitchToLogin }) {
             onClose();
             navigate('/verify-otp', { state: { email: form.username.trim().toLowerCase() } });
         } catch (err) {
-            // ✅ Use improved friendlySignupError — get field + msg + action
+            // ✅ friendlySignupError now handles 500 Hibernate constraint errors
             const { field, msg, action } = friendlySignupError(err);
             if (field) {
                 setFieldErrors(prev => ({ ...prev, [field]: msg }));
-                if (action) {
-                    setFieldActions(prev => ({ ...prev, [field]: action }));
-                }
+                if (action) setFieldActions(prev => ({ ...prev, [field]: action }));
             } else {
                 setGlobalError(msg);
+                if (action) setGlobalAction(action);
             }
         } finally {
             setLoading(false);
         }
     }
 
-    // ✅ Called when user clicks "Sign in instead →" next to a field error
-    function handleSwitchToLogin(email = '') {
-        setSwitchEmail(email || form.username.trim().toLowerCase());
-        setDoSwitch(true);
+    // Switch to login modal, optionally pre-filling the email
+    function switchToLogin(email = '') {
+        onSwitchToLogin(email || form.username.trim().toLowerCase());
     }
 
     const str = passwordStrength(form.password);
     const pwdReqs = form.password ? [
-        { ok: form.password.length >= 8,        text: '8+ chars'   },
-        { ok: /[A-Z]/.test(form.password),       text: 'Uppercase'  },
-        { ok: /[0-9]/.test(form.password),       text: 'Number'     },
+        { ok: form.password.length >= 8,         text: '8+ chars'  },
+        { ok: /[A-Z]/.test(form.password),        text: 'Uppercase' },
+        { ok: /[0-9]/.test(form.password),        text: 'Number'    },
         { ok: /[^A-Za-z0-9]/.test(form.password), text: 'Special'  },
     ] : [];
 
@@ -510,17 +498,20 @@ function SignupModal({ onClose, onSwitchToLogin }) {
             <GoogleButton label="Sign up with Google" />
             <Divider />
 
-            {/* ✅ Global error (non-field errors) */}
+            {/* Global error with "Sign in instead" action */}
             {globalError && (
                 <div className="alert-error">
                     ⚠️ {globalError}
-                    <span className="alert-action" onClick={() => handleSwitchToLogin()}>
-                        Sign in instead →
-                    </span>
+                    {globalAction && (
+                        <span className="alert-action" onClick={() => switchToLogin()}>
+                            {globalAction.label} →
+                        </span>
+                    )}
                 </div>
             )}
 
             <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+
                 {/* Row: Name + Phone */}
                 <div className="form-row-2">
                     <div className="form-group">
@@ -534,11 +525,11 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                         />
                         <FieldErr msg={fieldErrors.fullName} />
                     </div>
+
                     <div className="form-group">
                         <label className="form-label" htmlFor="phone">
                             Phone <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '10px' }}>(10 digits)</span>
                         </label>
-                        {/* ✅ Phone duplicate — styled banner under the field */}
                         <input
                             id="phone" type="tel" placeholder="9876543210"
                             autoComplete="tel" value={form.phone} maxLength={10}
@@ -549,18 +540,28 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                         <FieldErr
                             msg={fieldErrors.phone}
                             action={fieldActions.phone}
-                            onAction={() => handleSwitchToLogin()}
+                            onAction={() => {
+                                // type: 'retry' — phone clear karo, user naya number dale
+                                update('phone', '');
+                                setFieldActions(p => { const n = { ...p }; delete n.phone; return n; });
+                            }}
                         />
-                        {/* ✅ Special callout for phone duplicate */}
-                        {fieldActions.phone?.type === 'login' && (
+                        {/* ✅ Phone duplicate callout — "Try with Different Number" */}
+                        {fieldActions.phone?.type === 'retry' && (
                             <div className="dupe-callout dupe-callout--phone">
                                 <span>📱</span>
                                 <span>
-                                    This number is already registered.{' '}
-                                    <strong className="dupe-link" onClick={() => handleSwitchToLogin()}>
-                                        Sign in instead →
-                                    </strong>
-                                </span>
+                        This number is already registered.{' '}
+                                    <strong
+                                        className="dupe-link"
+                                        onClick={() => {
+                                            update('phone', '');
+                                            setFieldActions(p => { const n = { ...p }; delete n.phone; return n; });
+                                        }}
+                                    >
+                            Try with Different Number →
+                        </strong>
+                    </span>
                             </div>
                         )}
                     </div>
@@ -568,9 +569,9 @@ function SignupModal({ onClose, onSwitchToLogin }) {
 
                 {/* Email */}
                 <div className="form-group">
-                    <label className="form-label" htmlFor="email">Email Address</label>
+                    <label className="form-label" htmlFor="signup-email">Email Address</label>
                     <input
-                        id="email" type="email" placeholder="your@email.com"
+                        id="signup-email" type="email" placeholder="your@email.com"
                         autoComplete="email" value={form.username}
                         className={`form-input ${fieldErrors.username ? 'input-error' : touched.username && !fieldErrors.username && form.username ? 'input-ok' : ''}`}
                         onChange={e => update('username', e.target.value)}
@@ -579,10 +580,19 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                     <FieldErr
                         msg={fieldErrors.username}
                         action={fieldActions.username}
-                        onAction={() => handleSwitchToLogin(form.username.trim())}
+                        onAction={() => {
+                            // type: 'retry' — email clear karo
+                            // type: 'login' — login modal mein switch karo
+                            if (fieldActions.username?.type === 'retry') {
+                                update('username', '');
+                                setFieldActions(p => { const n = { ...p }; delete n.username; return n; });
+                            } else {
+                                switchToLogin(form.username.trim());
+                            }
+                        }}
                     />
-                    {/* ✅ Special callout for email duplicate */}
-                    {fieldActions.username?.type === 'login' && (
+                    {/* ✅ Email duplicate callout — "Try with Different Email" */}
+                    {fieldActions.username?.type === 'retry' && (
                         <div className="dupe-callout dupe-callout--email">
                             <span>✉️</span>
                             <div style={{ flex: 1 }}>
@@ -590,22 +600,24 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                                 <div style={{ marginTop: '4px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                                     <strong
                                         className="dupe-link"
-                                        onClick={() => handleSwitchToLogin(form.username.trim())}
+                                        onClick={() => {
+                                            update('username', '');
+                                            setFieldActions(p => { const n = { ...p }; delete n.username; return n; });
+                                        }}
                                     >
-                                        Sign in to this account →
+                                        Try with Different Email →
                                     </strong>
                                     <span
                                         className="dupe-link-secondary"
-                                        onClick={() => { navigate('/forgot-password'); onClose(); }}
+                                        onClick={() => switchToLogin(form.username.trim())}
                                     >
-                                        Forgot password?
-                                    </span>
+                            Already have account? Sign in
+                        </span>
                                 </div>
                             </div>
                         </div>
                     )}
                 </div>
-
                 {/* Password */}
                 <div className="form-group">
                     <label className="form-label" htmlFor="password">Password</label>
@@ -618,7 +630,7 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                     {str && !fieldErrors.password && (
                         <div style={{ marginTop: '6px' }}>
                             <div className="strength-bar-bg">
-                                <div className="strength-bar-fill" style={{ width: str.w, background: str.color }}/>
+                                <div className="strength-bar-fill" style={{ width: str.w, background: str.color }} />
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
                                 <span style={{ fontSize: '10px', color: str.color, fontWeight: 700 }}>{str.label}</span>
@@ -653,18 +665,14 @@ function SignupModal({ onClose, onSwitchToLogin }) {
                 </div>
 
                 <button type="submit" disabled={loading} className={`btn-primary ${loading ? 'btn-loading' : ''}`} style={{ marginTop: '4px' }}>
-                    {loading
-                        ? <><span className="spinner"/> Creating account...</>
-                        : 'Create Account & Send OTP →'
-                    }
+                    {loading ? <><span className="spinner"/> Creating account...</> : 'Create Account & Send OTP →'}
                 </button>
             </form>
 
             <p className="modal-footer-text">
                 Already have an account?{' '}
-                <span className="link-text" onClick={() => handleSwitchToLogin()}>Sign in</span>
+                <span className="link-text" onClick={() => switchToLogin()}>Sign in</span>
             </p>
-
             <div className="privacy-note">
                 🔒 Your data is encrypted & secure. By signing up, you agree to our{' '}
                 <span className="link-text">Terms</span> &{' '}
@@ -674,30 +682,28 @@ function SignupModal({ onClose, onSwitchToLogin }) {
     );
 }
 
-// ── Main Landing Page ─────────────────────────────────────────────────────────
+/* ══════════════════════════════════════════════════════
+   MAIN LANDING PAGE
+══════════════════════════════════════════════════════ */
 export default function LandingPage() {
-    const [modal,       setModal]       = useState(null);
-    const [mobileMenu,  setMobileMenu]  = useState(false);
-    // ✅ loginPrefillEmail — when signup says "email exists", switch to login with email pre-filled
+    const [modal,             setModal]             = useState(null);
+    const [mobileMenu,        setMobileMenu]        = useState(false);
     const [loginPrefillEmail, setLoginPrefillEmail] = useState('');
     const { state } = useLocation();
 
-    useEffect(() => {
-        if (state?.openModal) setModal(state.openModal);
-    }, [state]);
+    useEffect(() => { if (state?.openModal) setModal(state.openModal); }, [state]);
 
     useEffect(() => {
-        const handler = () => { if (window.innerWidth > 768) setMobileMenu(false); };
-        window.addEventListener('resize', handler);
-        return () => window.removeEventListener('resize', handler);
+        const h = () => { if (window.innerWidth > 768) setMobileMenu(false); };
+        window.addEventListener('resize', h);
+        return () => window.removeEventListener('resize', h);
     }, []);
 
-    // ✅ When SignupModal calls onSwitchToLogin(email), prefill login email
+    // When signup says "email exists", switch to login with email pre-filled
     function handleSwitchToLogin(email = '') {
         setLoginPrefillEmail(email);
         setModal('login');
     }
-
     function handleSwitchToSignup() {
         setLoginPrefillEmail('');
         setModal('signup');
@@ -732,7 +738,6 @@ export default function LandingPage() {
         <div style={{ fontFamily: "'DM Sans','Outfit',sans-serif", background: '#fff', overflowX: 'hidden' }}>
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap');
-
                 @keyframes fadeUp    { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes float     { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
                 @keyframes modalIn   { from{opacity:0;transform:scale(.95) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }
@@ -740,146 +745,69 @@ export default function LandingPage() {
                 @keyframes slideDown { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
                 @keyframes spin      { to{transform:rotate(360deg)} }
                 @keyframes dupeIn    { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:translateY(0)} }
-
                 * { box-sizing:border-box; margin:0; padding:0; }
 
                 /* ── Forms ── */
                 .form-group { display:flex; flex-direction:column; }
-                .form-label {
-                    font-size:11px; font-weight:700; color:#64748b;
-                    text-transform:uppercase; letter-spacing:.06em;
-                    display:block; margin-bottom:6px; font-family:'DM Sans',sans-serif;
-                }
-                .form-input {
-                    width:100%; border:1.5px solid #e2e8f0; border-radius:10px;
-                    padding:11px 14px; font-size:13px; outline:none;
-                    background:#f8fafc; font-family:'DM Sans',sans-serif;
-                    box-sizing:border-box; color:#0f172a;
-                    transition:border-color .15s, background .15s, box-shadow .15s;
-                }
-                .form-input:focus {
-                    border-color:#0a4f3a; background:#fff;
-                    box-shadow:0 0 0 3px rgba(10,79,58,.08);
-                }
-                .form-input.input-error { border-color:#fca5a5 !important; background:#fff5f5; }
-                .form-input.input-error:focus { border-color:#ef4444 !important; box-shadow:0 0 0 3px rgba(239,68,68,.08); }
-                .form-input.input-ok   { border-color:#86efac; background:#f0fdf4; }
+                .form-label { font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; letter-spacing:.06em; display:block; margin-bottom:6px; font-family:'DM Sans',sans-serif; }
+                .form-input { width:100%; border:1.5px solid #e2e8f0; border-radius:10px; padding:11px 14px; font-size:13px; outline:none; background:#f8fafc; font-family:'DM Sans',sans-serif; box-sizing:border-box; color:#0f172a; transition:border-color .15s,background .15s,box-shadow .15s; }
+                .form-input:focus { border-color:#0a4f3a; background:#fff; box-shadow:0 0 0 3px rgba(10,79,58,.08); }
+                .form-input.input-error { border-color:#fca5a5!important; background:#fff5f5; }
+                .form-input.input-error:focus { border-color:#ef4444!important; box-shadow:0 0 0 3px rgba(239,68,68,.08); }
+                .form-input.input-ok { border-color:#86efac; background:#f0fdf4; }
                 .form-input::placeholder { color:#94a3b8; }
                 .form-row-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
                 /* ── Field error ── */
-                .field-err {
-                    font-size:10px; color:#ef4444; font-weight:600;
-                    margin-top:4px; line-height:1.5; display:flex;
-                    align-items:center; gap:5px; flex-wrap:wrap;
-                }
-                .field-err-action {
-                    color:#0a4f3a; font-weight:700; cursor:pointer;
-                    text-decoration:underline; white-space:nowrap;
-                }
+                .field-err { font-size:10px; color:#ef4444; font-weight:600; margin-top:4px; line-height:1.5; display:flex; align-items:center; gap:5px; flex-wrap:wrap; }
+                .field-err-action { color:#0a4f3a; font-weight:700; cursor:pointer; text-decoration:underline; white-space:nowrap; }
                 .field-err-action:hover { color:#1D9E75; }
 
                 /* ── Duplicate callout banners ── */
-                .dupe-callout {
-                    margin-top:7px; padding:9px 12px; border-radius:9px;
-                    font-size:11px; font-weight:500; line-height:1.5;
-                    display:flex; align-items:flex-start; gap:8px;
-                    animation:dupeIn .2s ease;
-                }
-                .dupe-callout--email {
-                    background:#fef3c7; border:1px solid #fde68a; color:#92400e;
-                }
-                .dupe-callout--phone {
-                    background:#fef3c7; border:1px solid #fde68a; color:#92400e;
-                }
-                .dupe-link {
-                    color:#0a4f3a; cursor:pointer; text-decoration:underline;
-                    font-weight:700;
-                }
+                .dupe-callout { margin-top:7px; padding:9px 12px; border-radius:9px; font-size:11px; font-weight:500; line-height:1.5; display:flex; align-items:flex-start; gap:8px; animation:dupeIn .2s ease; }
+                .dupe-callout--email, .dupe-callout--phone { background:#fef3c7; border:1px solid #fde68a; color:#92400e; }
+                .dupe-link { color:#0a4f3a; cursor:pointer; text-decoration:underline; font-weight:700; }
                 .dupe-link:hover { color:#1D9E75; }
-                .dupe-link-secondary {
-                    color:#64748b; cursor:pointer; font-size:10px;
-                    text-decoration:underline;
-                }
+                .dupe-link-secondary { color:#64748b; cursor:pointer; font-size:10px; text-decoration:underline; }
                 .dupe-link-secondary:hover { color:#374151; }
 
                 /* ── Alert ── */
-                .alert-error {
-                    background:#fef2f2; border:1px solid #fecaca; color:#dc2626;
-                    font-size:12px; border-radius:10px; padding:11px 14px;
-                    margin-bottom:14px; line-height:1.5; font-weight:500;
-                    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-                }
-                .alert-action {
-                    margin-left:auto; color:#0a4f3a; font-weight:700;
-                    cursor:pointer; text-decoration:underline; white-space:nowrap;
-                }
+                .alert-error { background:#fef2f2; border:1px solid #fecaca; color:#dc2626; font-size:12px; border-radius:10px; padding:11px 14px; margin-bottom:14px; line-height:1.5; font-weight:500; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+                .alert-action { margin-left:auto; color:#0a4f3a; font-weight:700; cursor:pointer; text-decoration:underline; white-space:nowrap; }
                 .alert-action:hover { color:#1D9E75; }
 
                 /* ── Buttons ── */
-                .btn-primary {
-                    width:100%; padding:13px 16px; border-radius:11px; border:none;
-                    background:#0a4f3a; color:#fff; font-size:13px; font-weight:700;
-                    cursor:pointer; font-family:'DM Sans',sans-serif;
-                    display:flex; align-items:center; justify-content:center; gap:8px;
-                    transition:background .2s, transform .15s, box-shadow .2s;
-                }
-                .btn-primary:hover:not(:disabled) {
-                    background:#0d6b50; transform:translateY(-1px);
-                    box-shadow:0 6px 20px rgba(10,79,58,.3);
-                }
+                .btn-primary { width:100%; padding:13px 16px; border-radius:11px; border:none; background:#0a4f3a; color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; display:flex; align-items:center; justify-content:center; gap:8px; transition:background .2s,transform .15s,box-shadow .2s; }
+                .btn-primary:hover:not(:disabled) { background:#0d6b50; transform:translateY(-1px); box-shadow:0 6px 20px rgba(10,79,58,.3); }
                 .btn-primary.btn-loading, .btn-primary:disabled { background:#64748b; cursor:not-allowed; opacity:.8; }
 
-                .google-btn {
-                    width:100%; padding:11px 16px; border-radius:11px;
-                    border:1.5px solid #e2e8f0; background:#fff;
-                    display:flex; align-items:center; justify-content:center;
-                    gap:10px; cursor:pointer; font-size:13px; font-weight:600;
-                    color:#374151; font-family:'DM Sans',sans-serif;
-                    transition:all .2s; box-shadow:0 1px 4px rgba(0,0,0,.06);
-                }
-                .google-btn:hover {
-                    background:#f8fafc; border-color:#94a3b8;
-                    transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.1);
-                }
+                .google-btn { width:100%; padding:11px 16px; border-radius:11px; border:1.5px solid #e2e8f0; background:#fff; display:flex; align-items:center; justify-content:center; gap:10px; cursor:pointer; font-size:13px; font-weight:600; color:#374151; font-family:'DM Sans',sans-serif; transition:all .2s; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+                .google-btn:hover { background:#f8fafc; border-color:#94a3b8; transform:translateY(-1px); box-shadow:0 4px 12px rgba(0,0,0,.1); }
 
                 /* ── Eye / Spinner ── */
-                .eye-btn {
-                    position:absolute; right:12px; top:50%; transform:translateY(-50%);
-                    background:none; border:none; color:#94a3b8; cursor:pointer;
-                    display:flex; align-items:center; padding:4px; border-radius:4px;
-                    transition:color .15s;
-                }
+                .eye-btn { position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; color:#94a3b8; cursor:pointer; display:flex; align-items:center; padding:4px; border-radius:4px; transition:color .15s; }
                 .eye-btn:hover { color:#475569; }
-                .spinner {
-                    width:14px; height:14px; border:2px solid rgba(255,255,255,.3);
-                    border-top-color:#fff; border-radius:50%;
-                    display:inline-block; animation:spin .7s linear infinite;
-                }
+                .spinner { width:14px; height:14px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; display:inline-block; animation:spin .7s linear infinite; }
 
-                /* ── Divider / Modal ── */
+                /* ── Divider / Strength / Modal ── */
                 .divider { display:flex; align-items:center; gap:12px; margin:16px 0; }
                 .divider-line { flex:1; height:1px; background:#e2e8f0; }
                 .divider-text { font-size:11px; color:#94a3b8; font-weight:600; white-space:nowrap; }
                 .strength-bar-bg { height:3px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
-                .strength-bar-fill { height:100%; border-radius:99px; transition:width .3s, background .3s; }
+                .strength-bar-fill { height:100%; border-radius:99px; transition:width .3s,background .3s; }
                 .modal-body { font-family:'DM Sans',sans-serif; }
                 .modal-header { margin-bottom:20px; text-align:center; }
-                .modal-icon {
-                    width:48px; height:48px; border-radius:14px; background:#f0fdf4;
-                    display:flex; align-items:center; justify-content:center;
-                    font-size:22px; margin:0 auto 12px;
-                }
-                .modal-title  { font-size:22px; font-weight:700; color:#0a4f3a; font-family:'Playfair Display',serif; margin-bottom:4px; }
+                .modal-icon { width:48px; height:48px; border-radius:14px; background:#f0fdf4; display:flex; align-items:center; justify-content:center; font-size:22px; margin:0 auto 12px; }
+                .modal-title { font-size:22px; font-weight:700; color:#0a4f3a; font-family:'Playfair Display',serif; margin-bottom:4px; }
                 .modal-subtitle { font-size:12px; color:#94a3b8; }
                 .modal-footer-text { text-align:center; margin-top:16px; font-size:12px; color:#94a3b8; }
                 .link-text { color:#0a4f3a; font-weight:700; cursor:pointer; }
                 .link-text:hover { text-decoration:underline; }
                 .trust-badges { display:flex; justify-content:center; gap:16px; margin-top:16px; padding-top:16px; border-top:1px solid #f1f5f9; flex-wrap:wrap; }
-                .trust-badge  { font-size:10px; color:#94a3b8; font-weight:500; }
+                .trust-badge { font-size:10px; color:#94a3b8; font-weight:500; }
                 .privacy-note { margin-top:12px; padding:10px 12px; background:#f8fafc; border-radius:9px; font-size:10px; color:#94a3b8; text-align:center; line-height:1.6; }
 
-                /* ── Landing ── */
+                /* ── Landing page ── */
                 .lp-btn-primary:hover { background:#1D9E75!important; transform:translateY(-2px); box-shadow:0 12px 28px rgba(10,79,58,.3)!important; }
                 .lp-btn-outline:hover { background:#0a4f3a!important; color:#fff!important; transform:translateY(-2px); }
                 .dept-card:hover { transform:translateY(-4px)!important; box-shadow:0 16px 40px rgba(0,0,0,.1)!important; border-color:#5DCAA5!important; }
@@ -890,6 +818,8 @@ export default function LandingPage() {
                 .step-card:hover .step-num   { color:rgba(255,255,255,.4)!important; }
                 .step-card:hover .step-title { color:#fff!important; }
                 .step-card:hover .step-desc  { color:rgba(255,255,255,.7)!important; }
+
+                /* ── Grids ── */
                 .lp-steps-grid   { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; max-width:1100px; margin:0 auto; }
                 .lp-dept-grid    { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; max-width:1100px; margin:0 auto; }
                 .lp-doc-grid     { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; max-width:1100px; margin:0 auto; }
@@ -905,24 +835,24 @@ export default function LandingPage() {
                 .lp-mobile-menu-btn { display:none; }
                 .lp-mobile-nav   { display:none; }
 
+                /* ── Responsive ── */
                 @media (max-width:1024px) {
-                    .lp-steps-grid { grid-template-columns:repeat(2,1fr)!important; }
-                    .lp-doc-grid   { grid-template-columns:repeat(2,1fr)!important; }
-                    .lp-about-grid, .lp-contact-grid { grid-template-columns:1fr!important; gap:40px!important; }
+                    .lp-steps-grid,.lp-doc-grid { grid-template-columns:repeat(2,1fr)!important; }
+                    .lp-about-grid,.lp-contact-grid { grid-template-columns:1fr!important; gap:40px!important; }
                     .lp-section-pad { padding:70px 40px!important; }
-                    .lp-nav         { padding:14px 32px!important; }
+                    .lp-nav { padding:14px 32px!important; }
                 }
                 @media (max-width:768px) {
-                    .lp-nav-links, .lp-nav-actions { display:none!important; }
+                    .lp-nav-links,.lp-nav-actions { display:none!important; }
                     .lp-mobile-menu-btn { display:flex!important; }
                     .lp-mobile-nav.open { display:flex!important; }
-                    .lp-dept-grid, .lp-doc-grid, .lp-steps-grid { grid-template-columns:repeat(2,1fr)!important; }
+                    .lp-dept-grid,.lp-doc-grid,.lp-steps-grid { grid-template-columns:repeat(2,1fr)!important; }
                     .lp-section-pad { padding:56px 20px!important; }
-                    .lp-nav         { padding:12px 20px!important; }
-                    .lp-hero-stats  { gap:16px!important; }
+                    .lp-nav { padding:12px 20px!important; }
+                    .lp-hero-stats { gap:16px!important; }
                 }
                 @media (max-width:480px) {
-                    .lp-doc-grid, .lp-steps-grid { grid-template-columns:1fr!important; }
+                    .lp-doc-grid,.lp-steps-grid { grid-template-columns:1fr!important; }
                     .lp-hero-btns button { width:100%!important; }
                     .form-row-2 { grid-template-columns:1fr!important; }
                 }
@@ -940,12 +870,21 @@ export default function LandingPage() {
                     </div>
                     <div className="lp-nav-links">
                         {['Services','Doctors','Departments','About','Contact'].map(l => (
-                            <a key={l} href={`#${l.toLowerCase()}`} className="nav-link" style={{ fontSize:'13px', fontWeight:500, color:'#64748b', textDecoration:'none', transition:'color .15s' }}>{l}</a>
+                            <a key={l} href={`#${l.toLowerCase()}`} className="nav-link"
+                               style={{ fontSize:'13px', fontWeight:500, color:'#64748b', textDecoration:'none', transition:'color .15s' }}>
+                                {l}
+                            </a>
                         ))}
                     </div>
                     <div className="lp-nav-actions">
-                        <button className="lp-btn-outline" onClick={() => setModal('login')} style={{ padding:'9px 20px', borderRadius:'9px', border:'1.5px solid #0a4f3a', background:'transparent', color:'#0a4f3a', fontSize:'13px', fontWeight:600, cursor:'pointer', transition:'all .2s' }}>Sign In</button>
-                        <button className="lp-btn-primary" onClick={() => setModal('signup')} style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#0a4f3a', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer', transition:'all .2s', boxShadow:'0 4px 14px rgba(10,79,58,.25)' }}>Book Appointment</button>
+                        <button className="lp-btn-outline" onClick={() => setModal('login')}
+                                style={{ padding:'9px 20px', borderRadius:'9px', border:'1.5px solid #0a4f3a', background:'transparent', color:'#0a4f3a', fontSize:'13px', fontWeight:600, cursor:'pointer', transition:'all .2s' }}>
+                            Sign In
+                        </button>
+                        <button className="lp-btn-primary" onClick={() => setModal('signup')}
+                                style={{ padding:'9px 20px', borderRadius:'9px', border:'none', background:'#0a4f3a', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer', transition:'all .2s', boxShadow:'0 4px 14px rgba(10,79,58,.25)' }}>
+                            Book Appointment
+                        </button>
                     </div>
                     <button className="lp-mobile-menu-btn" onClick={() => setMobileMenu(v => !v)}
                             style={{ background:'none', border:'none', fontSize:'24px', cursor:'pointer', color:'#0a4f3a', alignItems:'center', justifyContent:'center', padding:0 }}>
@@ -953,13 +892,16 @@ export default function LandingPage() {
                     </button>
                 </div>
                 {mobileMenu && (
-                    <div className="lp-mobile-nav open" style={{ flexDirection:'column', padding:'16px 20px 20px', borderTop:'1px solid #f0f0f0', background:'#fff', gap:'4px', animation:'slideDown .2s ease' }}>
+                    <div className="lp-mobile-nav open"
+                         style={{ flexDirection:'column', padding:'16px 20px 20px', borderTop:'1px solid #f0f0f0', background:'#fff', gap:'4px', animation:'slideDown .2s ease' }}>
                         {['Services','Doctors','Departments','About','Contact'].map(l => (
                             <a key={l} href={`#${l.toLowerCase()}`} onClick={() => setMobileMenu(false)}
-                               style={{ fontSize:'14px', fontWeight:500, color:'#374151', textDecoration:'none', padding:'10px 8px', borderRadius:'8px', display:'block' }}>{l}</a>
+                               style={{ fontSize:'14px', fontWeight:500, color:'#374151', textDecoration:'none', padding:'10px 8px', borderRadius:'8px', display:'block' }}>
+                                {l}
+                            </a>
                         ))}
                         <div style={{ display:'flex', gap:'10px', marginTop:'12px' }}>
-                            <button onClick={() => { setModal('login'); setMobileMenu(false); }} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1.5px solid #0a4f3a', background:'transparent', color:'#0a4f3a', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Sign In</button>
+                            <button onClick={() => { setModal('login');  setMobileMenu(false); }} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'1.5px solid #0a4f3a', background:'transparent', color:'#0a4f3a', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Sign In</button>
                             <button onClick={() => { setModal('signup'); setMobileMenu(false); }} style={{ flex:1, padding:'11px', borderRadius:'9px', border:'none', background:'#0a4f3a', color:'#fff', fontSize:'13px', fontWeight:600, cursor:'pointer' }}>Sign Up</button>
                         </div>
                     </div>
@@ -984,10 +926,12 @@ export default function LandingPage() {
                         World-class healthcare at your fingertips. Book appointments, access prescriptions, manage insurance — all in one place.
                     </p>
                     <div className="lp-hero-btns">
-                        <button className="lp-btn-primary" onClick={() => setModal('signup')} style={{ padding:'15px 32px', borderRadius:'12px', border:'none', background:'#5DCAA5', color:'#0a4f3a', fontSize:'14px', fontWeight:700, cursor:'pointer', boxShadow:'0 8px 24px rgba(93,202,165,.4)', transition:'all .2s' }}>
+                        <button className="lp-btn-primary" onClick={() => setModal('signup')}
+                                style={{ padding:'15px 32px', borderRadius:'12px', border:'none', background:'#5DCAA5', color:'#0a4f3a', fontSize:'14px', fontWeight:700, cursor:'pointer', boxShadow:'0 8px 24px rgba(93,202,165,.4)', transition:'all .2s' }}>
                             📅 Book Appointment
                         </button>
-                        <button className="lp-btn-outline" onClick={() => setModal('login')} style={{ padding:'15px 32px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,.4)', background:'rgba(255,255,255,.1)', color:'#fff', fontSize:'14px', fontWeight:600, cursor:'pointer', backdropFilter:'blur(8px)', transition:'all .2s' }}>
+                        <button className="lp-btn-outline" onClick={() => setModal('login')}
+                                style={{ padding:'15px 32px', borderRadius:'12px', border:'1.5px solid rgba(255,255,255,.4)', background:'rgba(255,255,255,.1)', color:'#fff', fontSize:'14px', fontWeight:600, cursor:'pointer', backdropFilter:'blur(8px)', transition:'all .2s' }}>
                             Sign In →
                         </button>
                     </div>
@@ -1011,11 +955,12 @@ export default function LandingPage() {
                 </div>
                 <div className="lp-steps-grid">
                     {steps.map(s => (
-                        <div key={s.step} className="step-card" style={{ background:'#fff', borderRadius:'18px', padding:'28px 24px', border:'1px solid #e8f4ef', transition:'all .25s', cursor:'default', boxShadow:'0 2px 12px rgba(0,0,0,.04)' }}>
-                            <div className="step-num" style={{ fontSize:'11px', fontWeight:800, color:'#d1fae5', letterSpacing:'.1em', marginBottom:'14px', transition:'color .25s' }}>{s.step}</div>
-                            <div className="step-icon" style={{ width:'48px', height:'48px', borderRadius:'14px', background:'#f0fdf4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', marginBottom:'14px', transition:'background .25s' }}>{s.icon}</div>
+                        <div key={s.step} className="step-card"
+                             style={{ background:'#fff', borderRadius:'18px', padding:'28px 24px', border:'1px solid #e8f4ef', transition:'all .25s', cursor:'default', boxShadow:'0 2px 12px rgba(0,0,0,.04)' }}>
+                            <div className="step-num"   style={{ fontSize:'11px', fontWeight:800, color:'#d1fae5', letterSpacing:'.1em', marginBottom:'14px', transition:'color .25s' }}>{s.step}</div>
+                            <div className="step-icon"  style={{ width:'48px', height:'48px', borderRadius:'14px', background:'#f0fdf4', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'22px', marginBottom:'14px', transition:'background .25s' }}>{s.icon}</div>
                             <div className="step-title" style={{ fontSize:'15px', fontWeight:700, color:'#0f172a', marginBottom:'8px', transition:'color .25s' }}>{s.title}</div>
-                            <div className="step-desc" style={{ fontSize:'12px', color:'#64748b', lineHeight:1.7, transition:'color .25s' }}>{s.desc}</div>
+                            <div className="step-desc"  style={{ fontSize:'12px', color:'#64748b', lineHeight:1.7, transition:'color .25s' }}>{s.desc}</div>
                         </div>
                     ))}
                 </div>
@@ -1030,7 +975,8 @@ export default function LandingPage() {
                 </div>
                 <div className="lp-dept-grid">
                     {departments.map(d => (
-                        <div key={d.name} className="dept-card" style={{ border:'1.5px solid #e8f4ef', borderRadius:'16px', padding:'24px 20px', cursor:'pointer', transition:'all .25s', background:'#fff', boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
+                        <div key={d.name} className="dept-card"
+                             style={{ border:'1.5px solid #e8f4ef', borderRadius:'16px', padding:'24px 20px', cursor:'pointer', transition:'all .25s', background:'#fff', boxShadow:'0 2px 8px rgba(0,0,0,.04)' }}>
                             <div style={{ fontSize:'28px', marginBottom:'12px' }}>{d.icon}</div>
                             <div style={{ fontSize:'14px', fontWeight:700, color:'#0f172a', marginBottom:'5px' }}>{d.name}</div>
                             <div style={{ fontSize:'12px', color:'#94a3b8' }}>{d.desc}</div>
@@ -1048,7 +994,8 @@ export default function LandingPage() {
                 </div>
                 <div className="lp-doc-grid">
                     {doctors.map(doc => (
-                        <div key={doc.name} className="doc-card" style={{ background:'#fff', borderRadius:'18px', padding:'24px', border:'1px solid #e8f4ef', transition:'all .25s', boxShadow:'0 2px 10px rgba(0,0,0,.05)' }}>
+                        <div key={doc.name} className="doc-card"
+                             style={{ background:'#fff', borderRadius:'18px', padding:'24px', border:'1px solid #e8f4ef', transition:'all .25s', boxShadow:'0 2px 10px rgba(0,0,0,.05)' }}>
                             <div style={{ width:'56px', height:'56px', borderRadius:'16px', background:doc.bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'24px', marginBottom:'14px' }}>👨‍⚕️</div>
                             <div style={{ fontSize:'14px', fontWeight:700, color:'#0f172a', marginBottom:'3px' }}>{doc.name}</div>
                             <div style={{ fontSize:'12px', color:doc.color, fontWeight:600, marginBottom:'6px' }}>{doc.spec}</div>
@@ -1062,7 +1009,8 @@ export default function LandingPage() {
                 </div>
                 <div style={{ textAlign:'center', marginTop:'40px' }}>
                     <p style={{ fontSize:'14px', color:'#64748b', marginBottom:'16px' }}>Sign in to see all doctors, their availability and book an appointment</p>
-                    <button onClick={() => setModal('signup')} style={{ padding:'13px 32px', borderRadius:'12px', border:'none', background:'#0a4f3a', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(10,79,58,.25)' }}>
+                    <button onClick={() => setModal('signup')}
+                            style={{ padding:'13px 32px', borderRadius:'12px', border:'none', background:'#0a4f3a', color:'#fff', fontSize:'14px', fontWeight:700, cursor:'pointer', boxShadow:'0 4px 14px rgba(10,79,58,.25)' }}>
                         📅 Create Account to Book
                     </button>
                 </div>
@@ -1137,7 +1085,12 @@ export default function LandingPage() {
                     <div style={{ background:'#f0fdf4', borderRadius:'20px', padding:'32px', border:'1px solid #d1fae5' }}>
                         <h3 style={{ fontSize:'18px', fontWeight:700, color:'#0a4f3a', fontFamily:"'Playfair Display',serif", marginBottom:'6px' }}>Book an Appointment</h3>
                         <p style={{ fontSize:'12px', color:'#64748b', marginBottom:'20px', lineHeight:1.6 }}>Create a free account to browse all doctors, check live availability and book your appointment online.</p>
-                        {[['✅','Choose from 500+ specialist doctors'],['📅','See real-time available slots'],['💊','Get digital prescriptions'],['🧾','View bills & insurance online']].map(([icon, text]) => (
+                        {[
+                            ['✅','Choose from 500+ specialist doctors'],
+                            ['📅','See real-time available slots'],
+                            ['💊','Get digital prescriptions'],
+                            ['🧾','View bills & insurance online'],
+                        ].map(([icon, text]) => (
                             <div key={text} style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'12px' }}>
                                 <span style={{ fontSize:'16px' }}>{icon}</span>
                                 <span style={{ fontSize:'13px', color:'#374151', fontWeight:500 }}>{text}</span>
@@ -1178,7 +1131,10 @@ export default function LandingPage() {
                     style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, backdropFilter:'blur(6px)', padding:'16px' }}
                     onClick={e => { if (e.target === e.currentTarget) setModal(null); }}>
                     <div style={{ background:'#fff', borderRadius:'22px', padding:'clamp(20px,4vw,36px)', width:'100%', maxWidth: modal === 'signup' ? '480px' : '420px', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 32px 80px rgba(0,0,0,.25)', animation:'modalIn .25s ease', position:'relative' }}>
-                        <button onClick={() => setModal(null)} style={{ position:'absolute', top:'16px', right:'16px', background:'#f1f5f9', border:'none', borderRadius:'8px', width:'30px', height:'30px', cursor:'pointer', fontSize:'14px', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>✕</button>
+                        <button onClick={() => setModal(null)}
+                                style={{ position:'absolute', top:'16px', right:'16px', background:'#f1f5f9', border:'none', borderRadius:'8px', width:'30px', height:'30px', cursor:'pointer', fontSize:'14px', color:'#64748b', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1 }}>
+                            ✕
+                        </button>
                         {modal === 'login'
                             ? <LoginModal
                                 onClose={() => setModal(null)}
@@ -1196,7 +1152,6 @@ export default function LandingPage() {
         </div>
     );
 }
-
 
 
 
