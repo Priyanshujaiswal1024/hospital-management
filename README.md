@@ -121,7 +121,7 @@ hospital-management-frontend/
 
 **Backend**
 ```bash
-git clone https://github.com/your-username/hospital-management-backend.git
+git clone https://github.com/Priyanshujaiswal1024/hospital-management-backend.git
 cd hospital-management-backend
 mvn clean install
 mvn spring-boot:run
@@ -129,7 +129,7 @@ mvn spring-boot:run
 
 **Frontend**
 ```bash
-git clone https://github.com/your-username/hospital-management-frontend.git
+git clone https://github.com/Priyanshujaiswal1024/hospital-management-frontend.git
 cd hospital-management-frontend
 npm install
 npm start
