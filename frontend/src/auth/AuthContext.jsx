@@ -3,16 +3,37 @@ import { jwtDecode } from 'jwt-decode';
 
 const AuthContext = createContext();
 
+const BASE_URL = "https://hospital-management-0rx3.onrender.com";
+
+// Warm-up utility
+export async function warmUpServer(onStatus) {
+    try {
+        onStatus?.("Server start ho raha hai, please wait... ⏳");
+        await fetch(`${BASE_URL}/actuator/health`, {
+            signal: AbortSignal.timeout(60000)
+        });
+        onStatus?.("");
+        return true;
+    } catch {
+        onStatus?.("");
+        return false;
+    }
+}
+
 export function AuthProvider({ children }) {
     const [user, setUser]       = useState(null);
     const [loading, setLoading] = useState(true);
+
+    // App open hote hi server jagao
+    useEffect(() => {
+        fetch(`${BASE_URL}/actuator/health`).catch(() => {});
+    }, []);
 
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
             try {
                 const decoded = jwtDecode(token);
-               // setUser(decoded);
                 if (decoded.exp * 1000 > Date.now()) {
                     setUser(decoded);
                 } else {

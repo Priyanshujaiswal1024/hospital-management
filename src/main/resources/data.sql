@@ -92,12 +92,12 @@ from app_user;
 # # TRUNCATE TABLE appointment;
 # #
 # # SET FOREIGN_KEY_CHECKS = 1;
-# # select *
-# # from department;
+select *
+from department;
 # # # select *
 # # # from doctor_availability;
-# # select *
-# # from department_doctors;
+select *
+from department_doctors;
 # select *
 # from doctor;
 # # SELECT * FROM doctor_availability
