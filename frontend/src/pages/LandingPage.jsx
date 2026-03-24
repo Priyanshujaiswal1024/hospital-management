@@ -17,7 +17,6 @@ function parseError(err) {
     if (Array.isArray(d.errors) && d.errors.length > 0) return String(d.errors[0]).trim();
     try { return JSON.stringify(d); } catch { return null; }
 }
-
 /*
   ✅ KEY FIX: Spring Boot throws 500 for Hibernate constraint violations like:
      "could not execute statement; constraint [UK_phone]"
@@ -283,6 +282,11 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
         if (Object.keys(errs).length > 0) return;
         setLoading(true);
         try {
+            await fetch("https://hospital-management-0rx3.onrender.com/actuator/health", {
+                signal: AbortSignal.timeout(60000)
+            });
+        } catch { /* server waking up, continue anyway */ }
+        try {
             const { data } = await api.post('/auth/login', {
                 username: form.username.trim().toLowerCase(),
                 password: form.password,
@@ -445,6 +449,11 @@ function SignupModal({ onClose, onSwitchToLogin }) {
         if (Object.keys(errs).length > 0) return;
 
         setLoading(true);
+        try {
+            await fetch("https://hospital-management-0rx3.onrender.com/actuator/health", {
+                signal: AbortSignal.timeout(60000)
+            });
+        } catch { /* server waking up, continue anyway */ }
         try {
             await api.post('/auth/signup', {
                 username: form.username.trim().toLowerCase(),
