@@ -348,8 +348,7 @@ public class WebSecurityConfig {
 
                                 .successHandler(oAuth2SuccessHandler)
                                 .failureHandler((request, response, exception) -> {
-                                      response.sendRedirect("http://localhost:5173/?error=" +
-                                            exception.getMessage());
+                                    response.sendRedirect("https://hospital-management-eight-sandy.vercel.app/?error=" + exception.getMessage());
                                 })
                         // No custom login page — redirect from frontend directly
                 )
