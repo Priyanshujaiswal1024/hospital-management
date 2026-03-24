@@ -9,7 +9,7 @@ const BASE_URL = "https://hospital-management-0rx3.onrender.com";
 export async function warmUpServer(onStatus) {
     try {
         onStatus?.("Server start ho raha hai, please wait... ⏳");
-        await fetch(`${BASE_URL}/actuator/health`, {
+        await fetch(`${BASE_URL}/api/v1/actuator/health`, {
             signal: AbortSignal.timeout(60000)
         });
         onStatus?.("");
@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
 
     // App open hote hi server jagao
     useEffect(() => {
-        fetch(`${BASE_URL}/actuator/health`).catch(() => {});
+        fetch(`${BASE_URL}/api/v1/actuator/health`).catch(() => {});
     }, []);
 
     useEffect(() => {

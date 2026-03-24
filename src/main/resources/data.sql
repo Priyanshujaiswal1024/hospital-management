@@ -159,3 +159,4 @@ from department_doctors;
 #
 # SHOW TABLES;
 # UPDATE app_user SET email_verified = true WHERE username = 'pk@gmail.com';
+select  * from department;
