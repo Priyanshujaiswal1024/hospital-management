@@ -282,7 +282,7 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
         if (Object.keys(errs).length > 0) return;
         setLoading(true);
         try {
-            await fetch("https://hospital-management-0rx3.onrender.com/actuator/health", {
+            await fetch("https://hospital-management-0rx3.onrender.com/api/v1/actuator/health", {
                 signal: AbortSignal.timeout(60000)
             });
         } catch { /* server waking up, continue anyway */ }
@@ -450,7 +450,7 @@ function SignupModal({ onClose, onSwitchToLogin }) {
 
         setLoading(true);
         try {
-            await fetch("https://hospital-management-0rx3.onrender.com/actuator/health", {
+            await fetch("https://hospital-management-0rx3.onrender.com/api/v1/actuator/health", {
                 signal: AbortSignal.timeout(60000)
             });
         } catch { /* server waking up, continue anyway */ }
