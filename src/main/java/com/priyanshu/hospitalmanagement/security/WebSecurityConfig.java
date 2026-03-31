@@ -296,6 +296,7 @@ public class WebSecurityConfig {
                                 "/login/**",
                                 "/login/oauth2/**",        // ✅ OAuth2 callback
                                 "/oauth2/**",
+                                "/actuator/**",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
