@@ -103,6 +103,7 @@ public class PrescriptionService {
     // ─────────────────────────────────────────────────────────────────────────
     // DOWNLOAD PDF
     // ─────────────────────────────────────────────────────────────────────────
+    @Transactional
     public byte[] downloadPrescriptionPdf(Long id) throws Exception {
         Prescription prescription = prescriptionRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException(
