@@ -61,6 +61,10 @@ public class AdminServiceImpl implements AdminService {
     public DoctorResponseDto createDoctor(CreateDoctorRequestDto dto) {
 
         // 1️⃣ Create User
+        if (userRepository.existsByUsername(dto.getEmail())) {
+            throw new RuntimeException("Email already registered: " + dto.getEmail());
+        }
+
         User user = new User();
         user.setUsername(dto.getUsername());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
