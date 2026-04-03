@@ -7,7 +7,7 @@ import org.springframework.web.client.RestTemplate;
 @Component
 public class SelfPingScheduler {
 
-    @Scheduled(fixedRate = 840000)
+    @Scheduled(fixedRate = 240000)
     public void ping() {
         try {
             new RestTemplate().getForObject(
