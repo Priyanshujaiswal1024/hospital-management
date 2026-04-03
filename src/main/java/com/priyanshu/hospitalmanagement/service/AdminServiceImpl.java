@@ -13,6 +13,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -56,6 +57,7 @@ public class AdminServiceImpl implements AdminService {
     }
     // CREATE DOCTOR
     @Override
+    @Transactional
     public DoctorResponseDto createDoctor(CreateDoctorRequestDto dto) {
 
         // 1️⃣ Create User
