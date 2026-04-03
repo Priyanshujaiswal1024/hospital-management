@@ -52,7 +52,7 @@ public class Doctor {
 
     // ── Relationships ─────────────────────────────────────────────────────
     @ToString.Exclude
-    @ManyToMany(mappedBy = "doctors")
+    @ManyToMany(mappedBy = "doctors", fetch=FetchType.EAGER)
     private Set<Department> departments = new HashSet<>();
 
     @ToString.Exclude
