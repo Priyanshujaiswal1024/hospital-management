@@ -128,7 +128,18 @@ public class AdminServiceImpl implements AdminService {
 
         Doctor doctor = doctorRepository.findById(doctorId)
                 .orElseThrow(() -> new RuntimeException("Doctor not found"));
+        User user = doctor.getUser(); // ← user reference save karo
+
+        // 1️⃣ Pehle doctor ko departments se remove karo
+        doctor.getDepartments().forEach(dept -> dept.getDoctors().remove(doctor));
+        doctor.getDepartments().clear();
+
+        // 2️⃣ Doctor delete karo
         doctorRepository.delete(doctor);
+        doctorRepository.flush(); // ← DB ko turant delete karne bolo
+
+        // 3️⃣ Ab user delete karo
+        userRepository.delete(user);;
     }
 
 
