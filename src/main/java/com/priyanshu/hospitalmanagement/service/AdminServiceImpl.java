@@ -124,6 +124,7 @@ public class AdminServiceImpl implements AdminService {
 
     // DELETE DOCTOR
     @Override
+    @Transactional
     public void deleteDoctor(Long doctorId) {
 
         Doctor doctor = doctorRepository.findById(doctorId)
