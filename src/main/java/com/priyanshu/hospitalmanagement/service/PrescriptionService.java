@@ -25,6 +25,7 @@ public class PrescriptionService {
     private final PrescriptionRepository prescriptionRepository;
     private final AppointmentRepository appointmentRepository;
     private final BillService billService;
+    private final BillRepository billRepository;
     private final MedicineRepository medicineRepository;
     private final PatientRepository patientRepository;
 
