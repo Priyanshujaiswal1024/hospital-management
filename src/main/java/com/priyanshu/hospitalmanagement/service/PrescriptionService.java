@@ -28,7 +28,7 @@ public class PrescriptionService {
     private final BillRepository billRepository;
     private final MedicineRepository medicineRepository;
     private final PatientRepository patientRepository;
-
+//
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE PRESCRIPTION — doctor only sets medicines
     // ─────────────────────────────────────────────────────────────────────────
