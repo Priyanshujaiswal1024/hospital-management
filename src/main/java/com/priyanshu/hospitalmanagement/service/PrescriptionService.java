@@ -30,7 +30,7 @@ public class PrescriptionService {
     private final PatientRepository patientRepository;
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE PRESCRIPTION — doctor only sets medicines
-    // ─────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     @Transactional
     public PrescriptionResponseDto createPrescription(
             Long appointmentId,
