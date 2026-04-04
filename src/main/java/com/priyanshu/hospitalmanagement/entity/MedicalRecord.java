@@ -41,7 +41,7 @@ public class MedicalRecord {
     @JoinColumn(name = "appointment_id")
     private Appointment appointment;
 
-    // ✅ Link to prescription
-    @OneToOne(mappedBy = "medicalRecord", cascade = CascadeType.ALL)
-    private Prescription prescription;
+ @OneToOne
+ @JoinColumn(name = "prescription_id", nullable = true)
+ private Prescription prescription;
 }

@@ -22,9 +22,9 @@ public class Prescription {
     @JoinColumn(name = "appointment_id")       // ← ADDED
     private Appointment appointment;
 
-    @OneToOne
-    @JoinColumn(name = "medical_record_id")
-    private MedicalRecord medicalRecord;
+//    @OneToOne
+//    @JoinColumn(name = "medical_record_id")
+//    private MedicalRecord medicalRecord;
 
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL)
     private List<PrescriptionMedicine> medicines;

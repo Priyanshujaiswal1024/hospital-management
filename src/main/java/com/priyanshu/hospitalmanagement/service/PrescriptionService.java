@@ -21,16 +21,16 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class PrescriptionService {
-
+//
     private final PrescriptionRepository prescriptionRepository;
     private final AppointmentRepository appointmentRepository;
     private final BillService billService;
+    private final BillRepository billRepository;
     private final MedicineRepository medicineRepository;
     private final PatientRepository patientRepository;
-
     // ─────────────────────────────────────────────────────────────────────────
     // CREATE PRESCRIPTION — doctor only sets medicines
-    // ─────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     @Transactional
     public PrescriptionResponseDto createPrescription(
             Long appointmentId,
