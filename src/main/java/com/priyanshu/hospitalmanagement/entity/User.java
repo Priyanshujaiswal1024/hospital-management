@@ -36,9 +36,7 @@ public class User {
 
     private boolean emailVerified;
 
-    private String otp;
 
-    private LocalDateTime otpExpiry;
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
     @Enumerated(EnumType.STRING)
