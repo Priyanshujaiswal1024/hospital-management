@@ -1,0 +1,40 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hospital_app
+    restart: unless-stopped
+    ports:
+      - "10000:10000"
+
+    environment:
+      # ================= DATABASE (NEON) =================
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+
+      # ================= REDIS (UPSTASH) =================
+      REDIS_URL: ${REDIS_URL}
+
+      # ================= MAIL =================
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      SPRING_MAIL_HOST: ${SPRING_MAIL_HOST}
+      SPRING_MAIL_PORT: ${SPRING_MAIL_PORT}
+
+      # ================= JWT =================
+      JWT_SECRET: ${JWT_SECRET}
+
+      # ================= OAUTH =================
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      OAUTH_REDIRECT_URI: ${OAUTH_REDIRECT_URI}
+
+      # ================= FRONTEND =================
+      FRONTEND_URL: ${FRONTEND_URL}
+
+      # ================= SERVER =================
+      PORT: "10000"

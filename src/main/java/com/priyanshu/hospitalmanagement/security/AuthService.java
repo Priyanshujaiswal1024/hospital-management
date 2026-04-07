@@ -14,45 +14,46 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
 public class AuthService {
 
-    private final UserRepository         userRepository;
-    private final PasswordEncoder        passwordEncoder;
-    private final EmailService           emailService;
-    private final OtpService             otpService;
-    private final AuthenticationManager  authenticationManager;
-    private final JWTService             jwtService;
+    private final UserRepository        userRepository;
+    private final PasswordEncoder       passwordEncoder;
+    private final EmailService          emailService;
+    private final OtpService            otpService;
+    private final AuthenticationManager authenticationManager;
+    private final JWTService            jwtService;
 
-    // Backend rate-limit: email → next allowed resend time
+    // In-memory rate-limit map — move to Redis if you need multi-instance support
     private final Map<String, LocalDateTime> resendCooldownMap = new ConcurrentHashMap<>();
 
     // ───────────────────────────────────────────────────────────────────────
     // SIGNUP
-    // ✅ Pre-check duplicate email AND phone BEFORE any DB insert
-    //    so MySQL constraint violations never reach the frontend
+    // ✅ OTP generated and emailed BEFORE saving user — avoids orphaned records
     // ───────────────────────────────────────────────────────────────────────
+    @Transactional
     public String signup(SignUpRequestDto dto) {
 
-        // ✅ 1. Check duplicate email — clean, readable error
         if (userRepository.findByUsername(dto.getUsername()).isPresent()) {
             throw new RuntimeException("An account with this email already exists. Try logging in instead.");
         }
 
-        // ✅ 2. Check duplicate phone BEFORE insert — prevents raw SQL from leaking
         if (dto.getPhone() != null && !dto.getPhone().isBlank()
                 && userRepository.existsByPhone(dto.getPhone())) {
             throw new RuntimeException("This phone number is already registered with another account.");
         }
 
-        String rawOtp    = otpService.generateOtp();
-        String hashedOtp = passwordEncoder.encode(rawOtp);   // store hashed OTP
+        // ✅ Generate OTP first — if email send fails, we never persist the user
+        String otp = otpService.generateAndSaveOtp(dto.getUsername());
+        emailService.sendOtp(dto.getUsername(), otp); // throws on failure → user not saved
 
         User user = User.builder()
                 .username(dto.getUsername())
@@ -60,14 +61,10 @@ public class AuthService {
                 .fullName(dto.getFullName())
                 .phone(dto.getPhone())
                 .emailVerified(false)
-                .otp(hashedOtp)
-                .otpExpiry(LocalDateTime.now().plusMinutes(5))
                 .roles(Set.of(RoleType.PATIENT))
                 .build();
 
         userRepository.save(user);
-        emailService.sendOtp(dto.getUsername(), rawOtp);
-
         return "User created. OTP sent to email.";
     }
 
@@ -80,17 +77,12 @@ public class AuthService {
         User user = userRepository.findByUsername(dto.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!passwordEncoder.matches(dto.getOtp(), user.getOtp())) {
-            throw new RuntimeException("Invalid OTP. Please check and try again.");
-        }
-
-        if (user.getOtpExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP has expired. Please request a new one.");
+        // verifyAndDelete: validates + removes key atomically (one-time use)
+        if (!otpService.verifyAndDelete(dto.getEmail(), dto.getOtp())) {
+            throw new RuntimeException("Invalid or expired OTP. Please request a new one.");
         }
 
         user.setEmailVerified(true);
-        user.setOtp(null);
-        user.setOtpExpiry(null);
         userRepository.save(user);
 
         String token = jwtService.generateToken(user);
@@ -100,26 +92,19 @@ public class AuthService {
     // ───────────────────────────────────────────────────────────────────────
     // RESEND OTP (60-second backend cooldown)
     // ───────────────────────────────────────────────────────────────────────
-    @Transactional
-    public String resendOtp(String email) {
+    public String resendOtp(String email) { // ✅ removed unnecessary @Transactional
 
         LocalDateTime allowed = resendCooldownMap.get(email);
         if (allowed != null && LocalDateTime.now().isBefore(allowed)) {
-            long secondsLeft = java.time.Duration.between(LocalDateTime.now(), allowed).getSeconds();
+            long secondsLeft = Duration.between(LocalDateTime.now(), allowed).getSeconds();
             throw new RuntimeException("Please wait " + secondsLeft + "s before resending.");
         }
 
-        User user = userRepository.findByUsername(email)
+        userRepository.findByUsername(email)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String rawOtp    = otpService.generateOtp();
-        String hashedOtp = passwordEncoder.encode(rawOtp);
-
-        user.setOtp(hashedOtp);
-        user.setOtpExpiry(LocalDateTime.now().plusMinutes(5));
-        userRepository.save(user);
-
-        emailService.sendOtp(email, rawOtp);
+        String otp = otpService.generateAndSaveOtp(email); // overwrites old key, resets TTL
+        emailService.sendOtp(email, otp);
         resendCooldownMap.put(email, LocalDateTime.now().plusSeconds(60));
 
         return "OTP resent successfully";
@@ -170,26 +155,19 @@ public class AuthService {
     // ───────────────────────────────────────────────────────────────────────
     // FORGOT PASSWORD
     // ───────────────────────────────────────────────────────────────────────
-    @Transactional
-    public String forgotPassword(String email) {
+    public String forgotPassword(String email) { // ✅ removed unnecessary @Transactional
 
         LocalDateTime allowed = resendCooldownMap.get(email + "_forgot");
         if (allowed != null && LocalDateTime.now().isBefore(allowed)) {
-            long secondsLeft = java.time.Duration.between(LocalDateTime.now(), allowed).getSeconds();
+            long secondsLeft = Duration.between(LocalDateTime.now(), allowed).getSeconds();
             throw new RuntimeException("Please wait " + secondsLeft + "s before requesting again.");
         }
 
-        User user = userRepository.findByUsername(email)
+        userRepository.findByUsername(email)
                 .orElseThrow(() -> new RuntimeException("No account found with this email address."));
 
-        String rawOtp    = otpService.generateOtp();
-        String hashedOtp = passwordEncoder.encode(rawOtp);
-
-        user.setOtp(hashedOtp);
-        user.setOtpExpiry(LocalDateTime.now().plusMinutes(5));
-        userRepository.save(user);
-
-        emailService.sendOtp(email, rawOtp);
+        String otp = otpService.generateAndSaveOtp(email + "_forgot"); // scoped key
+        emailService.sendOtp(email, otp);
         resendCooldownMap.put(email + "_forgot", LocalDateTime.now().plusSeconds(60));
 
         return "OTP sent to email";
@@ -197,38 +175,42 @@ public class AuthService {
 
     // ───────────────────────────────────────────────────────────────────────
     // RESET PASSWORD
+    // ✅ Validate passwords BEFORE consuming OTP — prevents wasted OTP on mismatch
     // ───────────────────────────────────────────────────────────────────────
     @Transactional
     public String resetPassword(ResetPasswordRequestDto dto) {
 
-        User user = userRepository.findByUsername(dto.getEmail())
+        userRepository.findByUsername(dto.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!passwordEncoder.matches(dto.getOtp(), user.getOtp())) {
-            throw new RuntimeException("Invalid OTP. Please check and try again.");
-        }
-        if (user.getOtpExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("OTP has expired. Please request a new one.");
-        }
+        // ✅ Check passwords match BEFORE burning the OTP
         if (!dto.getNewPassword().equals(dto.getConfirmPassword())) {
             throw new RuntimeException("Passwords do not match");
         }
 
+        if (!otpService.verifyAndDelete(dto.getEmail() + "_forgot", dto.getOtp())) {
+            throw new RuntimeException("Invalid or expired OTP. Please request a new one.");
+        }
+
+        User user = userRepository.findByUsername(dto.getEmail())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
-        user.setOtp(null);
-        user.setOtpExpiry(null);
         userRepository.save(user);
 
         resendCooldownMap.remove(dto.getEmail() + "_forgot");
 
         return "Password reset successfully";
     }
+
+    // ───────────────────────────────────────────────────────────────────────
+    // OAUTH2 LOGIN
+    // ───────────────────────────────────────────────────────────────────────
     @Transactional
     public LoginResponseDto handleOAuth2LoginRequest(
             org.springframework.security.oauth2.core.user.OAuth2User oAuth2User,
             String registrationId) {
 
-        // ── Extract email and name from Google's response ──
         String email    = oAuth2User.getAttribute("email");
         String fullName = oAuth2User.getAttribute("name");
 
@@ -236,28 +218,23 @@ public class AuthService {
             throw new RuntimeException("Email not received from " + registrationId);
         }
 
-        // ── Find existing user OR create new one ──
         User user = userRepository.findByUsername(email).orElseGet(() -> {
             User newUser = User.builder()
                     .username(email)
                     .fullName(fullName)
-                    .password(passwordEncoder.encode(java.util.UUID.randomUUID().toString()))
-                    .phone(null)             // Google doesn't provide phone
-                    .emailVerified(true)     // Google already verified email
-                    .otp(null)
-                    .otpExpiry(null)
-                    .roles(java.util.Set.of(RoleType.PATIENT))
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
+                    .phone(null)
+                    .emailVerified(true)
+                    .roles(Set.of(RoleType.PATIENT))
                     .build();
             return userRepository.save(newUser);
         });
 
-        // ── If existing user but not verified — mark verified ──
         if (!user.isEmailVerified()) {
             user.setEmailVerified(true);
             userRepository.save(user);
         }
 
-        // ── Generate JWT same as normal login ──
         String token = jwtService.generateToken(user);
         return new LoginResponseDto(token, user.getId());
     }
