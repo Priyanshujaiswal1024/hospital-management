@@ -9,7 +9,12 @@ services:
     restart: unless-stopped
     ports:
       - "10000:10000"
-
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:10000/api/v1/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
     environment:
       # ================= DATABASE (NEON) =================
       SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
