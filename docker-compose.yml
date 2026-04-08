@@ -8,9 +8,9 @@ services:
     container_name: hospital_app
     restart: unless-stopped
     ports:
-      - "10000:10000"
+      - "8080:8080"
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:10000/api/v1/actuator/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/api/v1/actuator/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -42,4 +42,4 @@ services:
       FRONTEND_URL: ${FRONTEND_URL}
 
       # ================= SERVER =================
-      PORT: "10000"
+      PORT: "8080"
