@@ -37,7 +37,7 @@ public class GlobalExceptionHandler {
         ApiError apiError = new ApiError("Invalid JWT token: " + ex.getMessage(), HttpStatus.UNAUTHORIZED);
         return new ResponseEntity<>(apiError, HttpStatus.UNAUTHORIZED);
     }
-
+//sc
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDeniedException(AccessDeniedException ex) {
         ApiError apiError = new ApiError("Access denied: Insufficient permissions", HttpStatus.FORBIDDEN);

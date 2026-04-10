@@ -42,7 +42,7 @@ public class OtpService {
         }
         return otp;
     }
-
+//s
     public boolean verifyAndDelete(String key, String otp) {
         if (otp == null) return false;
         try {
