@@ -35,7 +35,7 @@ public class EmailService {
 
         sendHtmlEmail(
                 toEmail,
-                "Verify Your Email — Priyansh Hospital",
+                "Verify Your Email — Priyansh Care Hospital",
                 "otp-email",
                 context
         );
@@ -90,7 +90,7 @@ public class EmailService {
         context.setVariable("billId", String.format("INV-%05d", billId));
         sendHtmlEmail(
                 toEmail,
-                "Invoice Generated — City Care Hospital",
+                "Invoice Generated — Priyansh Care Hospital",
                 "bill-generated",
                 context
         );
@@ -109,7 +109,7 @@ public class EmailService {
         context.setVariable("paidAt", paidAt.format(DATE_FMT));
         sendHtmlEmail(
                 toEmail,
-                "Payment Received — City Care Hospital",
+                "Payment Received — Priyansh Care Hospital",
                 "payment-confirmed",
                 context
         );
@@ -128,7 +128,7 @@ public class EmailService {
         context.setVariable("medicines", medicines);
         sendHtmlEmail(
                 toEmail,
-                "Your Prescription — City Care Hospital",
+                "Your Prescription — Priyansh Care Hospital",
                 "prescription-added",
                 context
         );
@@ -146,7 +146,7 @@ public class EmailService {
         context.setVariable("tempPassword", tempPassword);
         sendHtmlEmail(
                 toEmail,
-                "Welcome to City Care Hospital — Your Account Details",
+                "Welcome to Priyansh Care Hospital — Your Account Details",
                 "welcome",
                 context
         );
@@ -190,7 +190,7 @@ public class EmailService {
         context.setVariable("appointmentId", appointmentId);
         sendHtmlEmail(
                 toEmail,
-                "New Appointment Booked — City Care Hospital",
+                "New Appointment Booked — Priyansh Care Hospital",
                 "doctor-new-appointment",
                 context
         );
@@ -213,7 +213,7 @@ public class EmailService {
         context.setVariable("appointmentId", appointmentId);
         sendHtmlEmail(
                 toEmail,
-                "Appointment Reassigned to You — City Care Hospital",
+                "Appointment Reassigned to You — Priyansh Care Hospital",
                 "doctor-reassigned",
                 context
         );
@@ -236,7 +236,7 @@ public class EmailService {
         context.setVariable("recordId", recordId);
         sendHtmlEmail(
                 toEmail,
-                "Your Medical Record is Ready — City Care Hospital",
+                "Your Medical Record is Ready — Priyansh Care Hospital",
                 "medical-record-created",
                 context
         );
@@ -252,7 +252,7 @@ public class EmailService {
         context.setVariable("email", toEmail);
         sendHtmlEmail(
                 toEmail,
-                "Welcome to City Care Hospital — Your Account is Ready",
+                "Welcome to Priyansh Care Hospital — Your Account is Ready",
                 "patient-welcome",
                 context
         );
