@@ -9,6 +9,7 @@ import com.priyanshu.hospitalmanagement.entity.User;
 import com.priyanshu.hospitalmanagement.entity.type.RoleType;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -20,7 +21,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminServiceImpl implements AdminService {
@@ -98,11 +99,16 @@ public class AdminServiceImpl implements AdminService {
         department.getDoctors().add(doctor);
 
         doctorRepository.save(doctor);
-        emailService.sendDoctorWelcome(
-                dto.getEmail(),
-                dto.getName(),
-                dto.getPassword()
-        );
+        try {
+            emailService.sendDoctorWelcome(
+                    dto.getEmail(),
+                    dto.getName(),
+                    dto.getPassword()
+            );
+        }catch(Exception e)
+        {
+            log.warn("Doctor welcome email send nahi hua: {}", e.getMessage());
+        }
         return mapToDto(doctor);
     }
 
