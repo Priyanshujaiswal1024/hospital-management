@@ -9,7 +9,7 @@ import java.time.LocalDate;
 public class CreateMedicalRecordRequestDto {
     private Long appointmentId;      // required
     private Long prescriptionId;
-     // ✅ REQUIRED
+
 
     private String symptoms;      // optional
     private String diagnosis;     // ✅ main
