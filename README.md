@@ -197,16 +197,36 @@ Spring Boot Actuator endpoints:
 Used for monitoring application health and performance.
 
 ---
+Caching (Redis)
+Implemented Redis caching to improve performance and reduce database load
+Used for:
+OTP storage with expiration (TTL)
+Frequently accessed data (e.g., user/session data)
+Improved API response time and system efficiency
+📩 Asynchronous Processing (Kafka)
+Integrated Apache Kafka for event-driven architecture
+Used for asynchronous processing of:
+Appointment booking events
+Notification handling
+Billing-related events
+Ensures loose coupling and better scalability of services
+🐳 Containerization (Docker & Docker Compose)
+Containerized backend services using Docker
+Used Docker Compose to manage multi-container setup (application + database + cache)
+Ensures consistent development and deployment environments
 
-## Future Enhancements
 
-- Email / SMS notifications
-- Doctor-Patient chat system
-- Payment gateway integration
-- Advanced analytics dashboard
-- AI-based symptom checker
-
----
+🧩 Microservices (In Progress)
+Currently migrating the application from monolithic to microservices architecture
+Planning to split services like:
+User Service
+Appointment Service
+Billing Service
+Implementing service-to-service communication and API Gateway
+🔄 CI/CD & DevOps (Learning / Planned)
+Exploring CI/CD pipelines for automated build and deployment
+Learning container orchestration using Kubernetes (K8s)
+Future goal: Deploy microservices using Docker + Kubernetes with automated pipelines
 
 ## Author
 
