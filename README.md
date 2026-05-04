@@ -173,7 +173,17 @@ http://localhost:8080/swagger-ui/index.html
 
 ## Screenshots
 
-> Add screenshots here — Login Page, Dashboard, Appointment Page, Billing, etc.
+<img width="1919" height="965" alt="image" src="https://github.com/user-attachments/assets/d7b3239f-d462-4358-8500-487825d294ea" />
+<img width="1919" height="962" alt="image" src="https://github.com/user-attachments/assets/f952ae17-976e-461a-83a2-ea6f741e8889" />
+<img width="1726" height="804" alt="image" src="https://github.com/user-attachments/assets/04280950-34e0-446b-9423-7cb5e706992d" />
+<img width="1909" height="963" alt="image" src="https://github.com/user-attachments/assets/94b9f311-5d70-4553-a7b3-1ba851cd9e5f" />
+<img width="1712" height="630" alt="image" src="https://github.com/user-attachments/assets/84ce8bb0-7519-4934-ba77-9b1451595881" />
+
+
+
+
+
+
 
 ---
 
@@ -203,6 +213,7 @@ Used for:
 OTP storage with expiration (TTL)
 Frequently accessed data (e.g., user/session data)
 Improved API response time and system efficiency
+----------------------------------------------
 📩 Asynchronous Processing (Kafka)
 Integrated Apache Kafka for event-driven architecture
 Used for asynchronous processing of:
@@ -210,6 +221,7 @@ Appointment booking events
 Notification handling
 Billing-related events
 Ensures loose coupling and better scalability of services
+------------------------------------------------------
 🐳 Containerization (Docker & Docker Compose)
 Containerized backend services using Docker
 Used Docker Compose to manage multi-container setup (application + database + cache)
