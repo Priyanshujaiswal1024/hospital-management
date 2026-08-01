@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import api from '../../api/axios';
+import { jwtDecode } from 'jwt-decode';
 
 export default function VerifyOtp() {
     const [otp,            setOtp]            = useState(Array(6).fill(''));
@@ -88,7 +89,16 @@ export default function VerifyOtp() {
         try {
             const { data } = await api.post('/auth/verify-otp', { email, otp: code });
             login(data.jwt);
-            navigate('/role-redirect');
+            try {
+                const decoded = jwtDecode(data.jwt);
+                const role = decoded.role || decoded.roles?.[0]?.replace('ROLE_', '') || '';
+                if (role === 'PATIENT') navigate('/patient/profile', { replace: true });
+                else if (role === 'DOCTOR') navigate('/doctor/dashboard', { replace: true });
+                else if (role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+                else navigate('/', { replace: true });
+            } catch {
+                navigate('/', { replace: true });
+            }
         } catch (err) {
             const msg = err.response?.data?.message || err.response?.data?.error || '';
             const lower = msg.toLowerCase();

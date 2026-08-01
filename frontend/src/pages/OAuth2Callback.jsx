@@ -19,8 +19,12 @@ export default function OAuth2Callback() {
             console.log('=== roles ===', decoded.roles);   // ← ADD
             login(token);                   // save JWT in auth context
             setTimeout(() => {
-                navigate('/role-redirect');
-            }, 100);     // redirect based on role
+                const role = decoded.role || decoded.roles?.[0]?.replace('ROLE_', '') || '';
+                if (role === 'PATIENT') navigate('/patient/profile', { replace: true });
+                else if (role === 'DOCTOR') navigate('/doctor/dashboard', { replace: true });
+                else if (role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+                else navigate('/', { replace: true });
+            }, 100);
         } else {
             setError('Google login failed. No token received.');
             setTimeout(() => navigate('/'), 3000);

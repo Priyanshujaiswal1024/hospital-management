@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext.jsx';
 import api from '../api/axios.js';
+import { jwtDecode } from 'jwt-decode';
 import { 
     Heart, Brain, Activity, Eye, Baby, Sparkles, Award, Clock, Monitor, 
     Pill, Smile, UserCheck, ShieldCheck, Check, AlertTriangle, Search, 
@@ -254,7 +255,16 @@ function LoginModal({ onClose, onSwitchToSignup, prefillEmail = '' }) {
             });
             login(data.jwt);
             onClose();
-            navigate('/role-redirect');
+            try {
+                const decoded = jwtDecode(data.jwt);
+                const role = decoded.role || decoded.roles?.[0]?.replace('ROLE_', '') || '';
+                if (role === 'PATIENT') navigate('/patient/profile', { replace: true });
+                else if (role === 'DOCTOR') navigate('/doctor/dashboard', { replace: true });
+                else if (role === 'ADMIN') navigate('/admin/dashboard', { replace: true });
+                else navigate('/', { replace: true });
+            } catch {
+                navigate('/', { replace: true });
+            }
         } catch (err) {
             setErrors({ global: friendlyLoginError(err) });
         } finally {

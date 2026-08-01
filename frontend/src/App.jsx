@@ -43,22 +43,6 @@ import { AdminPatients, AdminAppointments, AdminDepartments, AdminMedicines, Adm
 
 import AdminProfile     from './pages/admin/AdminProfile';
 
-function RoleRedirect() {
-  const { user, loading } = useAuth();
-  if (loading) return null;
-  if (!user) return <Navigate to="/" replace />;
-
-  // ✅ Handle BOTH formats
-  const role = user.role                          // normal login → "PATIENT"
-      || user.roles?.[0]?.replace('ROLE_', '')    // google login → "ROLE_PATIENT"
-      || '';
-
-  if (role === 'PATIENT') return <Navigate to="/patient/profile" replace />;
-  if (role === 'DOCTOR')  return <Navigate to="/doctor/dashboard" replace />;
-  if (role === 'ADMIN')   return <Navigate to="/admin/dashboard" replace />;
-  return <Navigate to="/" replace />;
-}
-
 export default function App() {
   useEffect(() => {
     const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://hospital-management-0rx3.onrender.com/api/v1';
@@ -73,7 +57,6 @@ export default function App() {
 
             {/* ── public ── */}
             <Route path="/"                element={<LandingPage />} />
-            <Route path="/role-redirect"   element={<RoleRedirect />} />
             <Route path="/verify-otp"      element={<VerifyOtp />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/oauth2/callback" element={<OAuth2Callback />} /> {/* ✅ */}
