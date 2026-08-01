@@ -15,20 +15,21 @@ import {
     ChevronRight
 } from 'lucide-react';
 
-/* ── Brand Logo SVG ── */
-function Logo({ size = 36 }) {
+/* ── Stylized P Logo ── */
+function Logo({ size = 36, radius = 9 }) {
     return (
-        <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="40" height="40" rx="10" fill="url(#docGrad)"/>
-            <rect x="18" y="10" width="4" height="20" rx="2" fill="white"/>
-            <rect x="10" y="18" width="20" height="4" rx="2" fill="white"/>
-            <defs>
-                <linearGradient id="docGrad" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                    <stop offset="0%" stopColor="#0f172a"/>
-                    <stop offset="100%" stopColor="#0284c7"/>
-                </linearGradient>
-            </defs>
-        </svg>
+        <div style={{
+            width: size, height: size,
+            background: 'linear-gradient(135deg, #0d9488 0%, #0f172a 100%)',
+            borderRadius: radius, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexShrink: 0, overflow: 'hidden',
+            boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)',
+            border: '1px solid rgba(255,255,255,0.2)',
+            color: '#ffffff', fontWeight: 800, fontSize: size * 0.52,
+            fontFamily: "'Inter', system-ui, sans-serif"
+        }}>
+            P
+        </div>
     );
 }
 
