@@ -38,4 +38,7 @@ public class Appointment {
     private AppointmentStatus status;
     @OneToOne(mappedBy = "appointment", cascade = CascadeType.ALL)
     private MedicalRecord medicalRecord;
+
+    @Version
+    private Long version;
 }
